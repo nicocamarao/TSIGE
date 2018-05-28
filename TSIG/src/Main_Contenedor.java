@@ -21,6 +21,7 @@ import java.util.List;
 			{
 				if(Long.valueOf(contenedoresCompartidos.get(i).contenedor[0])==id)
 				{
+					encontre=true;
 					contenedoresCompartidos.get(i).contenedor[4] = estado;
 				}
 				else
