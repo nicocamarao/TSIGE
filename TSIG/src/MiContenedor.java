@@ -2,7 +2,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class MiContenedor implements Runnable {
 
-	private String[] contenedor;
+	public String[] contenedor;
 
 	public MiContenedor(String[] strings) {
 		contenedor = strings;
