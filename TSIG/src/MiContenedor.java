@@ -14,16 +14,22 @@ public class MiContenedor implements Runnable {
 	private String estado;
 	private double capacidad;
 	private int thing;
-	private int datastream;
-	private String gost = "18.231.190.192";
+	private int datastreamCapacidad;
+	private int datastreamTemperatura;
+	private String gost = "127.0.0.1";
 
-	public MiContenedor(int thing, int datastream) {
-		estado = "DISPONIBLE";
+	public MiContenedor(int thing, int dsCap, int dsTemp) {
+		this.estado = "DISPONIBLE";
 		this.thing = thing;
-		this.datastream = datastream;
-		capacidad = 0;
+		this.datastreamCapacidad = dsCap;
+		this.datastreamTemperatura = dsTemp;
+		this.capacidad = 0;
 	}
-
+	
+	public void setEstado(String estado) {
+		this.estado = estado;
+	}
+		
 	public void run() {
 
 		try {
@@ -71,7 +77,7 @@ public class MiContenedor implements Runnable {
 	
 	public void updateCapacidadEnGOST(Double capacidad) throws IOException
 	{
-		String u = "http://" + gost + ":9080/v1.0/Datastreams(" + datastream + ")/Observations/";
+		String u = "http://" + gost + ":9080/v1.0/Datastreams(" + datastreamCapacidad + ")/Observations/";
 		URL url = new URL(u);
 		JSONObject body = new JSONObject();
 		body.put("capacidad", capacidad);
