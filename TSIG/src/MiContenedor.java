@@ -3,7 +3,9 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
+import java.net.Proxy;
 import java.net.URL;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -16,7 +18,7 @@ public class MiContenedor implements Runnable {
 	private int thing;
 	private int datastreamCapacidad;
 	private int datastreamTemperatura;
-	private String gost = "127.0.0.1";
+	private String gost = "18.231.190.192";
 
 	public MiContenedor(int thing, int dsCap, int dsTemp) {
 		this.estado = "DISPONIBLE";
@@ -81,7 +83,8 @@ public class MiContenedor implements Runnable {
 		URL url = new URL(u);
 		JSONObject body = new JSONObject();
 		body.put("capacidad", capacidad);
-		
+		//Proxy proxy = new Proxy(Proxy.Type.HTTP, new
+		//		InetSocketAddress("proxysis", 8080));
 		HttpURLConnection conn = (HttpURLConnection) url.openConnection(/*proxy*/);
 		conn.setDoOutput(true);
 		conn.setRequestMethod("POST");

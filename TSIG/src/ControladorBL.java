@@ -1,5 +1,4 @@
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -14,8 +13,8 @@ public class ControladorBL {
 
 	private static ControladorBL instance = null;
 	private static final String USER_AGENT = "Mozilla/5.0";
-	private static final String SERVER_IP = "localhost";
-	private static final String SERVER_PORT = "8080";
+	private static final String SERVER_IP = "18.231.190.192";
+	private static final String SERVER_PORT = "9080";
 	private static final String GET_CONTENEDORES_URL = "http://" + SERVER_IP + ":" + SERVER_PORT
 			+ "/v1.0/Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id)&$top=500";
 	private static final String GET_CAMIONES_URL = "http://" + SERVER_IP + ":" + SERVER_PORT
@@ -29,7 +28,7 @@ public class ControladorBL {
 		this.camiones = new HashMap<Integer, Camion>();
 
 		loadContenedoresFromServer();
-		// loadCamionesFromServer();
+		loadCamionesFromServer();
 	}
 
 	public static ControladorBL getInstance() {
@@ -76,9 +75,11 @@ public class ControladorBL {
 	private void loadContenedoresFromServer() {
 		try {
 			URL url = new URL(GET_CONTENEDORES_URL);
-			HttpURLConnection con = (HttpURLConnection) url.openConnection();
+			//Proxy proxy = new Proxy(Proxy.Type.HTTP, new
+			//		InetSocketAddress("proxysis", 8080));
+			HttpURLConnection con = (HttpURLConnection) url.openConnection(/*proxy*/);
 			con.setRequestMethod("GET");
-			con.setRequestProperty("User-Agent", USER_AGENT);
+			//con.setRequestProperty("User-Agent", USER_AGENT);
 			int responseCode = con.getResponseCode();
 			System.out.println("GET Response Code :: " + responseCode);
 			if (responseCode == HttpURLConnection.HTTP_OK) { // success
@@ -115,7 +116,7 @@ public class ControladorBL {
 				}
 
 			} else {
-				System.out.println("Error en GET request: " + responseCode);
+				//System.out.println("Error en GET request: " + responseCode);
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -123,10 +124,12 @@ public class ControladorBL {
 
 	}
 
-	private void loadCamionesFromServer() throws IOException {
+	private void loadCamionesFromServer() {
 		try {
 			URL url = new URL(GET_CAMIONES_URL);
-			HttpURLConnection con = (HttpURLConnection) url.openConnection();
+			//Proxy proxy = new Proxy(Proxy.Type.HTTP, new
+			//		InetSocketAddress("proxysis", 8080));
+			HttpURLConnection con = (HttpURLConnection) url.openConnection(/*proxy*/);
 			con.setRequestMethod("GET");
 			con.setRequestProperty("User-Agent", USER_AGENT);
 			int responseCode = con.getResponseCode();
