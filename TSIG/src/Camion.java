@@ -1,4 +1,3 @@
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -6,6 +5,7 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.ParseException;
+import java.util.LinkedList;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -13,22 +13,25 @@ import org.json.simple.parser.JSONParser;
 
 public class Camion implements Runnable{
 
-	static int threshold = 40; // por defecto
-	static JSONArray caminoaseguir = new JSONArray();
-	static String gost = "18.231.190.192";
-	static int id = 0;
+	int threshold = 40; // por defecto
+	JSONArray caminoaseguir = new JSONArray();
+	String gost = "18.231.190.192";
+	int id = 0;
+	LinkedList<Integer> historico = new LinkedList<Integer>();//array de historicos con tope, topehist
+	int topehist = 2; 
 
 	public Camion(int id)
 	{
-		this.id=331;
-	}
+		this.id=id;	
+		
+	}	
 	
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
 		try { 
 			
-			
+			ControladorBL cbl = ControladorBL.getInstance();
 			JSONParser json = new JSONParser();
 			JSONObject jobj = (JSONObject) json.parse("{" + "\"@iot.id\": 340, \"location\":{\"coordinates\": [-56.2594684914509, -34.8433762543554]}}");
 			while (true) {
@@ -37,7 +40,9 @@ public class Camion implements Runnable{
 				JSONArray camino = obtenerCamino(jobj, resultado);
 
 				for (int i = 1, largo = camino.size(); largo > i; i++) {
-
+					historico.addFirst((Integer) ((JSONObject) camino.get(i)).get("@iot.id"));
+					if (historico.size() > 2)
+						historico.removeLast();
 					long tiempo = Long.parseLong(String.valueOf(((JSONObject) camino.get(i)).get("tiempo")));
 					try {
 						Thread.sleep(tiempo
@@ -53,7 +58,7 @@ public class Camion implements Runnable{
 					updateGOST((JSONObject) camino.get(i));
 
 				}
-				
+				cbl.setEstado((Integer)(((JSONObject) camino.get(camino.size() - 1))).get("@iot.id"), "CAMION"); // pase por cotainer, setea el container en 0
 
 				jobj = (JSONObject) camino.get(camino.size() - 1);
 			}
@@ -64,8 +69,8 @@ public class Camion implements Runnable{
 		}
 	}
 
-	public static JSONObject buscarSiguiente(
-			JSONObject jsontacho/* JSON con los datos del GOST del 1er */) throws ParseException, IOException, org.json.simple.parser.ParseException {
+	public JSONObject buscarSiguiente(
+			JSONObject jsontacho/* JSON con los datos del GOST del container*/) throws ParseException, IOException, org.json.simple.parser.ParseException {
 
 		JSONParser json = new JSONParser();
 		/*
@@ -82,10 +87,10 @@ public class Camion implements Runnable{
 		 * ;
 		 */
 		int dist = -1;
-		URL url = new URL("http://" + gost + ":9080/v1.0/Locations?$filter=geo.distance(location,%20geography%27POINT(" + ((JSONArray) ((JSONObject) jsontacho.get("location")).get("coordinates")).get(0) + "%20" + ((JSONArray) ((JSONObject) jsontacho.get("location")).get("coordinates")).get(1) + ")%27)%20lt%200.005");
-		// Proxy proxy = new Proxy(Proxy.Type.HTTP, new
-		// InetSocketAddress("proxysis", 8080));
-		HttpURLConnection conn = (HttpURLConnection) url.openConnection(/* proxy */);
+		URL url = new URL("http://" + gost + ":9080/v1.0/Locations?$filter=geo.distance(location,%20geography%27POINT(" + ((JSONArray) ((JSONObject) jsontacho.get("location")).get("coordinates")).get(0) + "%20" + ((JSONArray) ((JSONObject) jsontacho.get("location")).get("coordinates")).get(1) + ")%27)%20lt%200.01");
+		//Proxy proxy = new Proxy(Proxy.Type.HTTP, new
+		//InetSocketAddress("proxysis", 8080));
+		HttpURLConnection conn = (HttpURLConnection) url.openConnection(/*proxy*/);
 		conn.setRequestMethod("GET");
 		if (conn.getResponseCode() != 200) {
 			throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
@@ -97,16 +102,23 @@ public class Camion implements Runnable{
 		while ((output = br.readLine()) != null) {
 			jstring += output;
 		}
-		conn.disconnect(); // ESTE ES EL CODIGO REAL, DESCOMENTAR CUANDO ESTE EL
-							// GOST
+		conn.disconnect(); 
+		
 
 		JSONObject siguiente = null;
 		JSONObject objeto = (JSONObject) json.parse(jstring);
 		JSONArray resp = (JSONArray) objeto.get("value");
+		boolean enhist = false;
 		for (int i = 0, largo = resp.size(); i < largo; i++) {
 			// primero busco el tacho siguiente, más cercano al tacho actual
-
-			if (((JSONObject) resp.get(i)).get("@iot.id") != ((JSONObject) jsontacho).get("@iot.id")) {
+			
+			 enhist = false;
+			
+			for (int j = 0, l = historico.size(); j < l && !enhist; j++)
+				enhist = historico.get(j) == ((JSONObject) resp.get(i)).get("@iot.id");
+					
+			
+			if (!enhist && ((JSONObject) resp.get(i)).get("@iot.id") != ((JSONObject) jsontacho).get("@iot.id")) {
 
 				int ndist = distancia((JSONObject) resp.get(i), jsontacho); // se
 																			// puede
@@ -135,7 +147,7 @@ public class Camion implements Runnable{
 
 	};
 
-	public static int distancia(JSONObject tacho1, JSONObject tacho2) throws IOException, ParseException, org.json.simple.parser.ParseException {
+	public int distancia(JSONObject tacho1, JSONObject tacho2) throws IOException, ParseException, org.json.simple.parser.ParseException {
 
 		JSONParser json = new JSONParser();
 
@@ -173,7 +185,7 @@ public class Camion implements Runnable{
 
 	};
 
-	public static JSONArray obtenerCamino(JSONObject origen, JSONObject destino) throws IOException, ParseException, org.json.simple.parser.ParseException {
+	public JSONArray obtenerCamino(JSONObject origen, JSONObject destino) throws IOException, ParseException, org.json.simple.parser.ParseException {
 
 		JSONArray o = (JSONArray) ((JSONObject) origen.get("location")).get("coordinates");
 		JSONArray d = (JSONArray) ((JSONObject) destino.get("location")).get("coordinates");
@@ -236,14 +248,14 @@ public class Camion implements Runnable{
 
 	};
 
-	public static void updateGOST(JSONObject ubicacion) throws IOException {
+	public void updateGOST(JSONObject ubicacion) throws IOException {
 
 		String u = "http://" + gost + ":9080/v1.0/Things(" + id + ")/Locations";
 		URL url = new URL(u);
 		JSONObject body = new JSONObject();
 
-		body.put("name", "Camión " + id);
-		body.put("description", "Camión " + id);
+		body.put("name", "Camion " + id);
+		body.put("description", "Camion " + id);
 		body.put("encodingType", "application/vnd.geo+json");
 		body.put("location", (JSONObject) ubicacion.get("location"));
 
