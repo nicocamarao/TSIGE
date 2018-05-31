@@ -10,33 +10,47 @@
     </style>
 	
 	<!-- jquery google CDN -->
-	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script> 
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 	
 	<!-- jquery local -->
 	<!-- <script src="js/jquery-3.3.1.js"></script> -->
-	                                                     
+	  
+	<!-- ToDo: pasar scripts a js externo -->
+	<!-- <script src="js/tachos.js"</script> -->
+	
 	<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC1gYO7H0bQKLqPYL0m0Th4TKxSrXq9Dwk&callback=initMap"></script>
 	
 	<script>
+		//ToDo: obtener siempre mirando nextLink
+	
 		// URL base del servidor GOST
+		//const ST_SERVER_BASE_URL = "http://localhost:8080/v1.0/";
 		const ST_SERVER_BASE_URL = "http://18.231.190.192:9080/v1.0/";
-		// Para obtener Things (Camiones) con Location
-		const GET_CAMIONES_LOC = ST_SERVER_BASE_URL + "Things?$filter=startswith(name,'Camion')&$expand=Locations";
-		// Para obtener Things (Camiones) con Location en el mapa visible
-		const GET_CAMIONES_LOC_MAP = ST_SERVER_BASE_URL + "Things?$expand=Locations&$filter=startswith(name,'Camion') and st_contains(geography'POLYGON (<mapBounds>)', location)";
-		// Para obtener Things (Contenedores) con Location, Datastreams y últimas 100 Observation de cada Datastream
-		const GET_CONTENEDORES_LOC_DATA = ST_SERVER_BASE_URL +  "Things?$filter=startswith(name,'Contenedor')&$expand=Locations,Datastreams/Observations($top=1)";
-		// Para obtener la última observación de un Datastream
-		const GET_CONTENEDORES_ULT_DATA = ST_SERVER_BASE_URL + "Datastream(<idDS>)/Observation";
+
+		// Devuele camiones con ultima location
+		const GET_CAMIONES_LOC = ST_SERVER_BASE_URL + "Things?$filter=startswith(name,'Camion')&$expand=Locations($select=location%3B$top=1)&$select=id,name,Locations&$top=500";
+
+		// Devuelve contenedores con ubicacion
+		const GET_CONTENEDORES_LOC = ST_SERVER_BASE_URL + "Things?$filter=startswith(name,'Contenedor')&$expand=Locations($select=location%3B$top=1)&$select=id,name,Locations&$top=500";
+		
+		// Devuelve contenedores con ultima ubicación y ultima observación
+		const GET_CONTENEDORES_LOC_OBS_1 = ST_SERVER_BASE_URL + "Things?$filter=startswith(name,'Contenedor')&$expand=Locations($top=1%3B$select=location),Datastreams($select=id,Observations),Datastreams/Observations($top=1%3B$select=result)&$select=id,name,Datastreams,Locations&$top=200&$skip=0";
+		const GET_CONTENEDORES_LOC_OBS_2 = ST_SERVER_BASE_URL + "Things?$filter=startswith(name,'Contenedor')&$expand=Locations($top=1%3B$select=location),Datastreams($select=id,Observations),Datastreams/Observations($top=1%3B$select=result)&$select=id,name,Datastreams,Locations&$top=200&$skip=200";
+
+		// Devuelve contenedores con  ultima observación
+		const GET_CONTENEDORES_OBS_1 = ST_SERVER_BASE_URL + "Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id,Observations),Datastreams/Observations($top=1%3B$select=result)&$select=id,name,Datastreams&$top=200&$skip=0";
+		const GET_CONTENEDORES_OBS_2 = ST_SERVER_BASE_URL + "Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id,Observations),Datastreams/Observations($top=1%3B$select=result)&$select=id,name,Datastreams&$top=200&$skip=200";
+
 		// Tiempos de actualización de los camiones (ms)
 		const CAMIONES_UPDATE_INTERVAL = 10000;
+
 		// Tiempos de actualización de los contenedores (ms)
-		const CONTENEDORES_UPDATE_INTERVAL = 300000;
-		
+		const CONTENEDORES_UPDATE_INTERVAL = 60000;
+
 		var map = null;
 		var dicCamiones = {};
 		var dicContenedores = {};
-		
+
 		// Inicializa el mapa
 		function initMap() {
 			map = new google.maps.Map(document.getElementById('map'), {
@@ -44,39 +58,93 @@
 				center: new google.maps.LatLng(-34.918231, -56.166501), // FING
 			});
 			
-			// Actualiza ubicaciones de camiones periodicamente
+			// Obtiene por primera vez los camiones
 			setTimeout(ajaxGetCamiones(), 5000);
-			setInterval(ajaxGetCamiones, CAMIONES_UPDATE_INTERVAL);
 			
-			// Actualiza ubicación y observaciones de contenedores periodicamente
-			setTimeout(ajaxGetContenedores(), 5000);
-			setInterval(ajaxGetContenedores, CONTENEDORES_UPDATE_INTERVAL);
+			// Actualiza ubicaciones de camiones periodicamente
+			setInterval(ajaxGetCamiones(), CAMIONES_UPDATE_INTERVAL);
+			
+			// Obtiene por primera vez los contenedores con ubicacion y ultima observacion
+			setTimeout(ajaxGetContenedores1(), 5000);
+			setTimeout(ajaxGetContenedores2(), 10000);
+			
+			// Actualiza observaciones de contenedores periodicamente (location se supone fija)
+			setInterval(ajaxGetContenedoresObs1(), CONTENEDORES_UPDATE_INTERVAL);
+			setInterval(ajaxGetContenedoresObs2(), CONTENEDORES_UPDATE_INTERVAL);
+			
+			
+			//DEBUG
+			//setInterval(debugMoveCamion, 3000);
 		}
+
+		<!-- function debugMoveCamion() { -->
+			<!-- var camion = dicCamiones[344]; -->
+			<!-- if (camion != undefined) { -->
+				<!-- var marker = camion.marker; -->
+				<!-- camion.Locations["0"].location.coordinates[1] += 0.001; -->
+				<!-- camion.Locations["0"].location.coordinates[0] += 0.001; -->
+				<!-- var latLng = new google.maps.LatLng(camion.Locations["0"].location.coordinates[1], camion.Locations["0"].location.coordinates[0]); -->
+				<!-- marker.setMap(null); -->
+				<!-- marker.setMap(map); -->
+				<!-- marker.setPosition(latLng); -->
+			<!-- } -->
+		<!-- } -->
 		
 		function ajaxGetCamiones() {
 			$.ajax({
 				dataType: "json",
 				url: GET_CAMIONES_LOC,
 				success: function (response) {
-					updateCamiones(response.value);
-				}
-			});
-		}
-		
-		function ajaxGetContenedores() {
-			$.ajax({
-				dataType: "json",
-				url: GET_CONTENEDORES_LOC_DATA,
-				success: function (response) {
-					updateContenedores(response.value);
+					addOrUpdateCamiones(response.value);
 				}
 			});
 		}
 
-		function updateCamiones(camiones) {
+		function ajaxGetContenedores1() {
+			$.ajax({
+				dataType: "json",
+				url: GET_CONTENEDORES_LOC_OBS_1,
+				success: function (response) {
+					addContenedores(response.value);
+				}
+			});
+		}
+		
+		function ajaxGetContenedores2() {
+			$.ajax({
+				dataType: "json",
+				url: GET_CONTENEDORES_LOC_OBS_2,
+				success: function (response) {
+					addContenedores(response.value);
+				}
+			});
+		}
+
+		function ajaxGetContenedoresObs1() {
+			$.ajax({
+				dataType: "json",
+				url: GET_CONTENEDORES_OBS_1,
+				success: function (response) {
+					updateContenedoresObs(response.value);
+				}
+			});
+		}
+		
+		function ajaxGetContenedoresObs2() {
+			$.ajax({
+				dataType: "json",
+				url: GET_CONTENEDORES_OBS_2,
+				success: function (response) {
+					updateContenedoresObs(response.value);
+				}
+			});
+		}
+
+		// camiones deben tener id y una location
+		function addOrUpdateCamiones(camiones) {
 			for (var i = 0; i < camiones.length; i++) {
 				var c = camiones[i];
-				var cDic = dicCamiones[c.id];
+				var cDic = dicCamiones[c["@iot.id"]];
 				
 				if (cDic == undefined) {
 					addThing(parseThingJSON(c), dicCamiones);
@@ -84,12 +152,41 @@
 					updateThingLocation(c, dicCamiones);
 				}
 			}
-		};
-		
-		function updateContenedores(contenedores) {
+		}
+
+		// contenedores deben tener id, location, 2 ds con ids y una observacion de cada ds
+		function addContenedores(contenedores) {
 			for (var i = 0; i < contenedores.length; i++) {
 				var c = contenedores[i];
-				var cDic = dicContenedores[c.id];
+				addThing(parseThingJSON(c), dicContenedores);
+			}
+		}
+
+		// contenedoresObs deben tener id, 2 ds con ids y una observacion de cada ds
+		function updateContenedoresObs(contenedoresObs) {
+			for (var i = 0; i < contenedoresObs.length; i++) {
+				var c = contenedoresObs[i];
+				var cDic = dicContenedores[c["@iot.id"]];
+				
+				if (cDic != undefined) {
+					if ((cDic.Datastreams == undefined) 
+					   || (hasObservationsInDatastream(c,0) && c.Datastreams["0"].Observations[0].id != cDic.Datastreams[0].Observations[0].id)
+					   || (hasObservationsInDatastream(c,1) && c.Datastreams["1"].Observations[0].id != cDic.Datastreams[1].Observations[0].id))
+					{
+						updateContenedorObservations(c);
+					}
+				}
+				//si aparece contenedor nuevo lo ignora, para que lo agregue igual llamar 'addOrUpdateContenedores'
+			}
+		}
+
+		// Esta sería para controlar que puedan aparecer nuevos contenedores
+		// Una mejor manera de hacerlo es en 'updateContenedores', si es un contenedor nuevo, pedir la ubicación (o toda la data) y despues llamar 'addThing' con la información completa
+		// contenedores debe tener los misos atributos que en addContenedores 
+		function addOrUpdateContenedores(contenedores) {
+			for (var i = 0; i < contenedores.length; i++) {
+				var c = contenedores[i];
+				var cDic = dicContenedores[c["@iot.id"]];
 				
 				if (cDic == undefined) {
 					addThing(parseThingJSON(c), dicContenedores);
@@ -97,24 +194,31 @@
 					if (c.Locations[0].location != cDic.Locations[0].location) {
 						updateThingLocation(c, dicContenedores);
 					}
-					if ((c.Datastreams[0].hasOwnProperty('Observations') && c.Datastreams[0].Observations != undefined && c.Datastreams[0].Observations[0].id != cDic.Datastreams[0].Observations[0].id)
-					   || (c.Datastreams[1].hasOwnProperty('Observations') && c.Datastreams[1].Observations != undefined && c.Datastreams[1].Observations[0].id != cDic.Datastreams[1].Observations[0].id))
+					if (hasObservationsInDatastream(c,0) && c.Datastreams[0].Observations[0].id != cDic.Datastreams[0].Observations[0].id
+					   || (hasObservationsInDatastream(c,1) && c.Datastreams[1].Observations[0].id != cDic.Datastreams[1].Observations[0].id))
 					{
 						updateContenedorObservations(c);
 					}
 				}
 			}
-		};
-		
-		function updateContenedorObservations(c) {
-			dicContenedores[c.id].Observations = c.Observations;
-			dicContenedores[c.id].marker.infoWindow.setContent(contentForThing(c));
 		}
-		
+
+		function hasObservationsInDatastream(thing, ds) {
+			return thing.Datastreams != undefined
+				&& thing.Datastreams[ds].hasOwnProperty('Observations')
+				&& thing.Datastreams[ds].Observations != undefined;
+		}
+
+		//ToDo: No sustituír, agregar con cierto máximo
+		function updateContenedorObservations(c) {
+			dicContenedores[c["@iot.id"]].Observations = c.Observations;
+			dicContenedores[c["@iot.id"]].marker.infoWindow.setContent(contentForThing(c));
+		}
+
 		// Retorna el objeto correspondiente a la Thing t
 		function parseThingJSON(t) {
 			// quita caracteres no permitidos por js como nombres de variables
-			return JSON.parse(JSON.stringify(t).replace(/\w*@iot./g,""));
+			return JSON.parse(JSON.stringify(t).replace(/\w*@iot./g,"")); //ToDo: capaz hay que cambiar esto, ver que pasa con los navigationLink
 		}
 
 		// Crea un marker para la Thing t y la agrega al diccionario global correspondiente
@@ -122,26 +226,41 @@
 			var latLng = new google.maps.LatLng(t.Locations[0].location.coordinates[1], t.Locations[0].location.coordinates[0]);
 			var bounds = new google.maps.LatLngBounds();
 			bounds.extend(latLng);
-			
-			if (t.name.startsWith("Camion")){
+
+			if (t.name.startsWith("Camion"))
+			{
+				var icono = {
+					url: "img/camion.png",
+					scaledSize: new google.maps.Size(35, 35), //escala 25%, 25% la imagen
+					origin: new google.maps.Point(0,0),
+					anchor: new google.maps.Point(0, 0)
+				};
 				var marker = new google.maps.Marker({
-				position: latLng,
-				map: map,
-				title: t.name,
-				icon: "http://maps.google.com/mapfiles/kml/shapes/cabs.png"
+					position: latLng,
+					map: map,
+					title: t.name,
+					icon: icono,
+					zIndex: 9999
 				});
-			}else{
+			} else {
+				var icono = {
+					url: "img/contenedor_vacio.png",
+					scaledSize: new google.maps.Size(20, 20), //escala 25%, 25% la imagen
+					origin: new google.maps.Point(0,0),
+					anchor: new google.maps.Point(0, 0)
+				};
 				var marker = new google.maps.Marker({
-				position: latLng,
-				map: map,
-				title: t.name
+					position: latLng,
+					map: map,
+					title: t.name,
+					icon: icono
 				});
 			}
 			t.marker = marker;
 			addInfoWindow(t);
 			dicThing[t.id] = t;
 		}
-		
+
 		function addInfoWindow(thing) {
 			var infoContent = contentForThing(thing);
 			var infoWindow = new google.maps.InfoWindow({content: infoContent});
@@ -150,35 +269,28 @@
 			thing.marker.addListener('click', function() {
 				thing.marker.infoWindow.open(map, thing.marker);
 			});
-			
-			<!-- thing.marker.addListener('mouseover', function() { -->
-				<!-- thing.marker.infowindow.open(map, this); -->
-			<!-- }); -->
-			<!-- thing.marker.addListener('mouseout', function() { -->
-				<!-- thing.marker.infowindow.close(); -->
-			<!-- }); -->
 		}
-		
+
+
 		function updateThingLocation(t, dicThing) {
-			dicThing[t.id].Locations[0].location = t.Locations[0].location;
-			updateMarkerPosition(dicThing[t.id].marker, dicThing[t.id].Locations[0].location);
+			dicThing[t["@iot.id"]].Locations[0].location = t.Locations[0].location;
+			updateMarkerPosition(dicThing[t["@iot.id"]].marker, dicThing[t["@iot.id"]].Locations[0].location);
 		}
-		
+
+		//ToDo: quedan los marker en varias ubicaciones
 		function updateMarkerPosition(marker, stLocation) {
-			var latLng = new google.maps.LatLng(stLocation.coordinates[1], stLocation.coordinates[0]);
-			marker.setMap(null);
-			marker.setMap(map);
-			marker.setPosition(latlng);
+			var latLng = new google.maps.LatLng(stLocation.coordinates[1], stLocation.coordinates[0])
+			marker.setPosition(latLng);
 		}
-		
+
 		function contentForThing(t) {
 			var contentString;
 			if (t.name.startsWith("Camion")) {
 				contentString = "<h2>" + t.name + "</h2>"
 					+ "<hr>"  + "<p>Location: " + t.marker.getPosition().toUrlValue(6) + "</p>";
 			} else if (t.name.startsWith("Contenedor")) {
-				var temp = t.Datastreams[0].hasOwnProperty('Observations') && t.Datastreams[0].Observations != undefined ? t.Datastreams[0].Observations[0].result + " " + t.Datastreams[0].unitOfMeasurement.symbol : 'No data';
-				var nivelCarga =  t.Datastreams[1].hasOwnProperty('Observations') && t.Datastreams[1].Observations != undefined ? t.Datastreams[1].Observations[0].result + " " + t.Datastreams[1].unitOfMeasurement.symbol : 'No data';
+				var temp = hasObservationsInDatastream(t, 0) ? t.Datastreams[0].Observations[0].result + " °C" : 'No data'; //+ t.Datastreams[0].unitOfMeasurement.symbol : 'No data';
+				var nivelCarga =  hasObservationsInDatastream(t, 1) ? t.Datastreams[1].Observations[0].result + " %" : 'No data'; // t.Datastreams[1].unitOfMeasurement.symbol : 'No data';
 				contentString = "<h2>" + t.name + "</h2>" + "<hr>" 
 					+ "<p>Nivel de carga: " + temp + "</p>"
 					+ "<p>Temperatura:    " + nivelCarga + "</p>"
@@ -186,8 +298,8 @@
 			}
 			return contentString;
 		}
-
 	</script>
+	
   </head>
   
   

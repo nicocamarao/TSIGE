@@ -16,10 +16,12 @@ public class ControladorBL {
 	private static final String USER_AGENT = "Mozilla/5.0";
 	private static final String SERVER_IP = "18.231.190.192";
 	private static final String SERVER_PORT = "9080";
-	private static final String GET_CONTENEDORES_URL = "http://" + SERVER_IP + ":" + SERVER_PORT
-			+ "/v1.0/Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id)&$top=500";
+	private static final String GET_CONTENEDORES_URL_1 = "http://" + SERVER_IP + ":" + SERVER_PORT
+			+ "/v1.0/Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id)&$select=id,Datastreams&$top=200&$skip=0";
+	private static final String GET_CONTENEDORES_URL_2 = "http://" + SERVER_IP + ":" + SERVER_PORT
+			+ "/v1.0/Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id)&$select=id,Datastreams&$top=200&$skip=200";
 	private static final String GET_CAMIONES_URL = "http://" + SERVER_IP + ":" + SERVER_PORT
-			+ "/v1.0/Things?$filter=startswith(name,'Camion')&$expand=Locations($select=id)&$top=500";
+			+ "/v1.0/Things?$filter=startswith(name,%27Camion%27)&$select=id&$top=500";
 
 	private HashMap<Integer, MiContenedor> contenedores;
 	private HashMap<Integer, Camion> camiones;
@@ -28,8 +30,9 @@ public class ControladorBL {
 		this.contenedores = new HashMap<Integer, MiContenedor>();
 		this.camiones = new HashMap<Integer, Camion>();
 
-		loadContenedoresFromServer();
-		loadCamionesFromServer();
+		loadContenedoresFromServer(GET_CONTENEDORES_URL_1);
+		loadContenedoresFromServer(GET_CONTENEDORES_URL_2);
+		loadCamionesFromServer(GET_CAMIONES_URL);
 	}
 
 	public static ControladorBL getInstance() {
@@ -74,9 +77,9 @@ public class ControladorBL {
 		}
 	}
 
-	private void loadContenedoresFromServer() {
+	private void loadContenedoresFromServer(String getContenedoresUrl) {
 		try {
-			URL url = new URL(GET_CONTENEDORES_URL);
+			URL url = new URL(getContenedoresUrl);
 			//Proxy proxy = new Proxy(Proxy.Type.HTTP, new
 			//		InetSocketAddress("proxysis", 8080));
 			HttpURLConnection con = (HttpURLConnection) url.openConnection(/*proxy*/);
@@ -126,9 +129,9 @@ public class ControladorBL {
 
 	}
 
-	private void loadCamionesFromServer() {
+	private void loadCamionesFromServer(String getCamionesUrl) {
 		try {
-			URL url = new URL(GET_CAMIONES_URL);
+			URL url = new URL(getCamionesUrl);
 			//Proxy proxy = new Proxy(Proxy.Type.HTTP, new
 			//		InetSocketAddress("proxysis", 8080));
 			HttpURLConnection con = (HttpURLConnection) url.openConnection(/*proxy*/);
@@ -152,11 +155,11 @@ public class ControladorBL {
 
 				// Json parse
 				JsonObject rootObj = new JsonParser().parse(jsonString).getAsJsonObject();
-				JsonArray jsonArrayContenedores = rootObj.getAsJsonArray("value");
+				JsonArray jsonArrayCamiones = rootObj.getAsJsonArray("value");
 
-				for (JsonElement je : jsonArrayContenedores) {
-					JsonObject jsonObjContenedor = je.getAsJsonObject();
-					int thingId = jsonObjContenedor.get("@iot.id").getAsInt();
+				for (JsonElement je : jsonArrayCamiones) {
+					JsonObject jsonObjCamion = je.getAsJsonObject();
+					int thingId = jsonObjCamion.get("@iot.id").getAsInt();
 					this.camiones.put(thingId, new Camion(thingId));
 				}
 
