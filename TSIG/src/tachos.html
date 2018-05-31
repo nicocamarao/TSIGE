@@ -1,0 +1,198 @@
+﻿<!DOCTYPE html>
+<html>
+  <head>
+	<title>Tachos - map</title>
+    <style>
+       #map {
+        width: 100%;
+		height: 700px;
+       }
+    </style>
+	
+	<!-- jquery google CDN -->
+	<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script> 
+	
+	<!-- jquery local -->
+	<!-- <script src="js/jquery-3.3.1.js"></script> -->
+	                                                     
+	<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC1gYO7H0bQKLqPYL0m0Th4TKxSrXq9Dwk&callback=initMap"></script>
+	
+	<script>
+		// URL base del servidor GOST
+		const ST_SERVER_BASE_URL = "http://18.231.190.192:9080/v1.0/";
+		// Para obtener Things (Camiones) con Location
+		const GET_CAMIONES_LOC = ST_SERVER_BASE_URL + "Things?$filter=startswith(name,'Camion')&$expand=Locations";
+		// Para obtener Things (Camiones) con Location en el mapa visible
+		const GET_CAMIONES_LOC_MAP = ST_SERVER_BASE_URL + "Things?$expand=Locations&$filter=startswith(name,'Camion') and st_contains(geography'POLYGON (<mapBounds>)', location)";
+		// Para obtener Things (Contenedores) con Location, Datastreams y últimas 100 Observation de cada Datastream
+		const GET_CONTENEDORES_LOC_DATA = ST_SERVER_BASE_URL +  "Things?$filter=startswith(name,'Contenedor')&$expand=Locations,Datastreams/Observations($top=1)";
+		// Para obtener la última observación de un Datastream
+		const GET_CONTENEDORES_ULT_DATA = ST_SERVER_BASE_URL + "Datastream(<idDS>)/Observation";
+		// Tiempos de actualización de los camiones (ms)
+		const CAMIONES_UPDATE_INTERVAL = 10000;
+		// Tiempos de actualización de los contenedores (ms)
+		const CONTENEDORES_UPDATE_INTERVAL = 300000;
+		
+		var map = null;
+		var dicCamiones = {};
+		var dicContenedores = {};
+		
+		// Inicializa el mapa
+		function initMap() {
+			map = new google.maps.Map(document.getElementById('map'), {
+				zoom: 14,
+				center: new google.maps.LatLng(-34.918231, -56.166501), // FING
+			});
+			
+			// Actualiza ubicaciones de camiones periodicamente
+			setTimeout(ajaxGetCamiones(), 5000);
+			setInterval(ajaxGetCamiones, CAMIONES_UPDATE_INTERVAL);
+			
+			// Actualiza ubicación y observaciones de contenedores periodicamente
+			setTimeout(ajaxGetContenedores(), 5000);
+			setInterval(ajaxGetContenedores, CONTENEDORES_UPDATE_INTERVAL);
+		}
+		
+		function ajaxGetCamiones() {
+			$.ajax({
+				dataType: "json",
+				url: GET_CAMIONES_LOC,
+				success: function (response) {
+					updateCamiones(response.value);
+				}
+			});
+		}
+		
+		function ajaxGetContenedores() {
+			$.ajax({
+				dataType: "json",
+				url: GET_CONTENEDORES_LOC_DATA,
+				success: function (response) {
+					updateContenedores(response.value);
+				}
+			});
+		}
+
+		function updateCamiones(camiones) {
+			for (var i = 0; i < camiones.length; i++) {
+				var c = camiones[i];
+				var cDic = dicCamiones[c.id];
+				
+				if (cDic == undefined) {
+					addThing(parseThingJSON(c), dicCamiones);
+				} else if (c.Locations[0].location != cDic.Locations[0].location) {
+					updateThingLocation(c, dicCamiones);
+				}
+			}
+		};
+		
+		function updateContenedores(contenedores) {
+			for (var i = 0; i < contenedores.length; i++) {
+				var c = contenedores[i];
+				var cDic = dicContenedores[c.id];
+				
+				if (cDic == undefined) {
+					addThing(parseThingJSON(c), dicContenedores);
+				} else {
+					if (c.Locations[0].location != cDic.Locations[0].location) {
+						updateThingLocation(c, dicContenedores);
+					}
+					if ((c.Datastreams[0].hasOwnProperty('Observations') && c.Datastreams[0].Observations != undefined && c.Datastreams[0].Observations[0].id != cDic.Datastreams[0].Observations[0].id)
+					   || (c.Datastreams[1].hasOwnProperty('Observations') && c.Datastreams[1].Observations != undefined && c.Datastreams[1].Observations[0].id != cDic.Datastreams[1].Observations[0].id))
+					{
+						updateContenedorObservations(c);
+					}
+				}
+			}
+		};
+		
+		function updateContenedorObservations(c) {
+			dicContenedores[c.id].Observations = c.Observations;
+			dicContenedores[c.id].marker.infoWindow.setContent(contentForThing(c));
+		}
+		
+		// Retorna el objeto correspondiente a la Thing t
+		function parseThingJSON(t) {
+			// quita caracteres no permitidos por js como nombres de variables
+			return JSON.parse(JSON.stringify(t).replace(/\w*@iot./g,""));
+		}
+
+		// Crea un marker para la Thing t y la agrega al diccionario global correspondiente
+		function addThing(t, dicThing) {
+			var latLng = new google.maps.LatLng(t.Locations[0].location.coordinates[1], t.Locations[0].location.coordinates[0]);
+			var bounds = new google.maps.LatLngBounds();
+			bounds.extend(latLng);
+			
+			if (t.name.startsWith("Camion")){
+				var marker = new google.maps.Marker({
+				position: latLng,
+				map: map,
+				title: t.name,
+				icon: "http://maps.google.com/mapfiles/kml/shapes/cabs.png"
+				});
+			}else{
+				var marker = new google.maps.Marker({
+				position: latLng,
+				map: map,
+				title: t.name
+				});
+			}
+			t.marker = marker;
+			addInfoWindow(t);
+			dicThing[t.id] = t;
+		}
+		
+		function addInfoWindow(thing) {
+			var infoContent = contentForThing(thing);
+			var infoWindow = new google.maps.InfoWindow({content: infoContent});
+			thing.marker.infoWindow = infoWindow;
+			
+			thing.marker.addListener('click', function() {
+				thing.marker.infoWindow.open(map, thing.marker);
+			});
+			
+			<!-- thing.marker.addListener('mouseover', function() { -->
+				<!-- thing.marker.infowindow.open(map, this); -->
+			<!-- }); -->
+			<!-- thing.marker.addListener('mouseout', function() { -->
+				<!-- thing.marker.infowindow.close(); -->
+			<!-- }); -->
+		}
+		
+		function updateThingLocation(t, dicThing) {
+			dicThing[t.id].Locations[0].location = t.Locations[0].location;
+			updateMarkerPosition(dicThing[t.id].marker, dicThing[t.id].Locations[0].location);
+		}
+		
+		function updateMarkerPosition(marker, stLocation) {
+			var latLng = new google.maps.LatLng(stLocation.coordinates[1], stLocation.coordinates[0]);
+			marker.setMap(null);
+			marker.setMap(map);
+			marker.setPosition(latlng);
+		}
+		
+		function contentForThing(t) {
+			var contentString;
+			if (t.name.startsWith("Camion")) {
+				contentString = "<h2>" + t.name + "</h2>"
+					+ "<hr>"  + "<p>Location: " + t.marker.getPosition().toUrlValue(6) + "</p>";
+			} else if (t.name.startsWith("Contenedor")) {
+				var temp = t.Datastreams[0].hasOwnProperty('Observations') && t.Datastreams[0].Observations != undefined ? t.Datastreams[0].Observations[0].result + " " + t.Datastreams[0].unitOfMeasurement.symbol : 'No data';
+				var nivelCarga =  t.Datastreams[1].hasOwnProperty('Observations') && t.Datastreams[1].Observations != undefined ? t.Datastreams[1].Observations[0].result + " " + t.Datastreams[1].unitOfMeasurement.symbol : 'No data';
+				contentString = "<h2>" + t.name + "</h2>" + "<hr>" 
+					+ "<p>Nivel de carga: " + temp + "</p>"
+					+ "<p>Temperatura:    " + nivelCarga + "</p>"
+					+ "<p>Location: " + t.marker.getPosition().toUrlValue(6) + "</p>";
+			}
+			return contentString;
+		}
+
+	</script>
+  </head>
+  
+  
+  <body>
+    <div id="map"></div>
+  </body>
+  
+</html>

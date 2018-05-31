@@ -1,3 +1,5 @@
+package camion;
+
 import java.io.IOException;
 
 public class Main_Contenedores_Camiones {
@@ -7,7 +9,7 @@ public class Main_Contenedores_Camiones {
 		System.out.println("Iniciando...");
 		ControladorBL.getInstance();
 		System.out.println("Carga finalizada...");
-		System.console().readLine();
+		//System.console().readLine();
 	}
 
 }

@@ -1,3 +1,5 @@
+package camion;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -34,10 +36,13 @@ public class MiContenedor implements Runnable {
 		
 	public void run() {
 
+		long randomtime = 0;
 		try {
 			while (true) {
-				long randomtime = (long) ThreadLocalRandom.current().nextDouble(1000, 10000);
-				Thread.sleep(randomtime);
+				randomtime += (long) ThreadLocalRandom.current().nextDouble(1000, 5000)*20;
+				if (thing == 224)
+					System.out.println("Tiempo "+randomtime+" Capacidad "+capacidad);
+				Thread.sleep(randomtime/20);
 				// capacidad
 				double random = ThreadLocalRandom.current().nextDouble(0, 1);
 				if (estado.equals("DISPONIBLE")) {
@@ -45,15 +50,24 @@ public class MiContenedor implements Runnable {
 					if (nuevo >= 100) {
 						estado = "LLENO";
 						capacidad = 100;
-						updateCapacidadEnGOST(capacidad);
+						if (randomtime > 4*60*1000) {
+							randomtime = 0;
+							updateCapacidadEnGOST(capacidad);
+						}
 					} else {
 						capacidad = nuevo;
-						updateCapacidadEnGOST(capacidad);
+						if (randomtime > 5*60*1000) {
+							randomtime = 0;
+							updateCapacidadEnGOST(capacidad);
+						}
 					}
 				} else if (estado.equals("CAMION")) {
 					capacidad = 0;
 					estado = "DISPONIBLE";
-					updateCapacidadEnGOST(capacidad);
+					if (randomtime > 2*60*1000) {
+						randomtime = 0;
+						updateCapacidadEnGOST(capacidad);
+					}
 				}
 				double temperatura = ThreadLocalRandom.current().nextDouble(21, 34);
 				if(temperatura > 33.900)
@@ -79,10 +93,10 @@ public class MiContenedor implements Runnable {
 	
 	public void updateCapacidadEnGOST(Double capacidad) throws IOException
 	{
-		String u = "http://" + gost + ":9080/v1.0/Datastreams(" + datastreamCapacidad + ")/Observations/";
+		String u = "http://" + gost + ":9080/v1.0/Datastreams(" + datastreamCapacidad + ")/Observations";
 		URL url = new URL(u);
 		JSONObject body = new JSONObject();
-		body.put("capacidad", capacidad);
+		body.put("result", capacidad);
 		//Proxy proxy = new Proxy(Proxy.Type.HTTP, new
 		//		InetSocketAddress("proxysis", 8080));
 		HttpURLConnection conn = (HttpURLConnection) url.openConnection(/*proxy*/);
@@ -108,7 +122,7 @@ public class MiContenedor implements Runnable {
 		while ((output = br.readLine()) != null) {
 			jstring += output;
 		}		
-		System.out.println("CAPACIDAD ENVIADA AL SERVIDOR, RESPUESTA\n"+jstring);
+		//System.out.println("CAPACIDAD ENVIADA AL SERVIDOR, RESPUESTA\n"+jstring);
 		conn.disconnect();		
 		
 		

@@ -1,3 +1,4 @@
+package camion;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -64,9 +65,10 @@ public class ControladorBL {
 		}
 	}
 
-	public void setEstado(Integer id, String estado) {
+	public void setEstado(Long id, String estado) {
 		try {
-			contenedores.get(id).setEstado(estado);
+			if (contenedores.get(id) != null)
+				contenedores.get(id).setEstado(estado);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -103,9 +105,9 @@ public class ControladorBL {
 				for (JsonElement je : jsonArrayContenedores) {
 					JsonObject jsonObjContenedor = je.getAsJsonObject();
 					int thingId = jsonObjContenedor.get("@iot.id").getAsInt();
-					int dsTempId = jsonObjContenedor.getAsJsonArray("Datastreams").get(0).getAsJsonObject()
+					int dsTempId = jsonObjContenedor.getAsJsonArray("Datastreams").get(1).getAsJsonObject()
 							.get("@iot.id").getAsInt();
-					int dsCapId = jsonObjContenedor.getAsJsonArray("Datastreams").get(1).getAsJsonObject()
+					int dsCapId = jsonObjContenedor.getAsJsonArray("Datastreams").get(0).getAsJsonObject()
 							.get("@iot.id").getAsInt();
 					this.contenedores.put(thingId, new MiContenedor(thingId, dsCapId, dsTempId));
 				}

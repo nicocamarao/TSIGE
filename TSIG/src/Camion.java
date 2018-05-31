@@ -1,3 +1,4 @@
+package camion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -17,8 +18,8 @@ public class Camion implements Runnable{
 	JSONArray caminoaseguir = new JSONArray();
 	String gost = "18.231.190.192";
 	int id = 0;
-	LinkedList<Integer> historico = new LinkedList<Integer>();//array de historicos con tope, topehist
-	int topehist = 2; 
+	LinkedList<Long> historico = new LinkedList<Long>();//array de historicos con tope, topehist
+	int topehist = 20; 
 
 	public Camion(int id)
 	{
@@ -32,21 +33,20 @@ public class Camion implements Runnable{
 		try { 
 			
 			ControladorBL cbl = ControladorBL.getInstance();
+			
+			//CAMBIAR POR GET DEL THING
 			JSONParser json = new JSONParser();
-			JSONObject jobj = (JSONObject) json.parse("{" + "\"@iot.id\": 340, \"location\":{\"coordinates\": [-56.2594684914509, -34.8433762543554]}}");
+			JSONObject jobj = (JSONObject) json.parse("{" + "\"@iot.id\": 337, \"location\":{\"coordinates\": [-56.12416, -34.898242]}}");
 			while (true) {
 				Thread.sleep(400);
 				JSONObject resultado = buscarSiguiente(jobj);
 				JSONArray camino = obtenerCamino(jobj, resultado);
 
-				for (int i = 1, largo = camino.size(); largo > i; i++) {
-					historico.addFirst((Integer) ((JSONObject) camino.get(i)).get("@iot.id"));
-					if (historico.size() > 2)
-						historico.removeLast();
+				for (int i = 1, largo = camino.size(); largo > i; i++) {					
 					long tiempo = Long.parseLong(String.valueOf(((JSONObject) camino.get(i)).get("tiempo")));
 					try {
 						Thread.sleep(tiempo
-								* 1000/*
+								* 100/*
 										 * MULTIPLICAR POR 1000 PARA PASAR A
 										 * MILISEGUNDOS; PARA PROBAR SE DEJA EN
 										 * LO QUE VENGA
@@ -58,7 +58,7 @@ public class Camion implements Runnable{
 					updateGOST((JSONObject) camino.get(i));
 
 				}
-				cbl.setEstado((Integer)(((JSONObject) camino.get(camino.size() - 1))).get("@iot.id"), "CAMION"); // pase por cotainer, setea el container en 0
+				cbl.setEstado((Long)resultado.get("@iot.id"), "CAMION"); // pase por cotainer, setea el container en 0
 
 				jobj = (JSONObject) camino.get(camino.size() - 1);
 			}
@@ -87,7 +87,7 @@ public class Camion implements Runnable{
 		 * ;
 		 */
 		int dist = -1;
-		URL url = new URL("http://" + gost + ":9080/v1.0/Locations?$filter=geo.distance(location,%20geography%27POINT(" + ((JSONArray) ((JSONObject) jsontacho.get("location")).get("coordinates")).get(0) + "%20" + ((JSONArray) ((JSONObject) jsontacho.get("location")).get("coordinates")).get(1) + ")%27)%20lt%200.01");
+		URL url = new URL("http://" + gost + ":9080/v1.0/Locations?$filter=startswith(description,%27Contenedor%27)%20and%20geo.distance(location,%20geography%27POINT(" + ((JSONArray) ((JSONObject) jsontacho.get("location")).get("coordinates")).get(0) + "%20" + ((JSONArray) ((JSONObject) jsontacho.get("location")).get("coordinates")).get(1) + ")%27)%20lt%200.03");
 		//Proxy proxy = new Proxy(Proxy.Type.HTTP, new
 		//InetSocketAddress("proxysis", 8080));
 		HttpURLConnection conn = (HttpURLConnection) url.openConnection(/*proxy*/);
@@ -118,7 +118,7 @@ public class Camion implements Runnable{
 				enhist = historico.get(j) == ((JSONObject) resp.get(i)).get("@iot.id");
 					
 			
-			if (!enhist && ((JSONObject) resp.get(i)).get("@iot.id") != ((JSONObject) jsontacho).get("@iot.id")) {
+			if (((String)((JSONObject)resp.get(i)).get("name")).contains("contenedor") && !enhist && ((JSONObject) resp.get(i)).get("@iot.id") != ((JSONObject) jsontacho).get("@iot.id")) {
 
 				int ndist = distancia((JSONObject) resp.get(i), jsontacho); // se
 																			// puede
@@ -141,6 +141,9 @@ public class Camion implements Runnable{
 				}
 			}
 		}
+		historico.addFirst((Long) siguiente.get("@iot.id"));
+		if (historico.size() > topehist)
+			historico.removeLast();
 		return siguiente;
 
 		// var ruta = this.ruta();/*llamar a la api, parsear la respuesta etc*/;
@@ -227,18 +230,29 @@ public class Camion implements Runnable{
 				loc.put("type", "Point");
 				nodo.put("location", loc);
 				resultado.add(nodo);
+				
+				nodo = new JSONObject();
+				nodo.put("tiempo", ((JSONObject) ((JSONObject) array.get(i)).get("duration")).get("value"));
+				coord = new JSONArray();
+				loc = new JSONObject();
+				coord.add(((JSONObject) ((JSONObject) array.get(i)).get("end_location")).get("lng"));
+				coord.add(((JSONObject) ((JSONObject) array.get(i)).get("end_location")).get("lat"));
+				loc.put("coordinates", coord);
+				loc.put("type", "Point");
+				nodo.put("location", loc);
+				resultado.add(nodo);
+			} else {
+				JSONObject nodo = new JSONObject();
+				nodo.put("tiempo", ((JSONObject) ((JSONObject) array.get(i)).get("duration")).get("value"));
+				JSONArray coord = new JSONArray();
+				JSONObject loc = new JSONObject();
+				coord.add(((JSONObject) ((JSONObject) array.get(i)).get("end_location")).get("lng"));
+				coord.add(((JSONObject) ((JSONObject) array.get(i)).get("end_location")).get("lat"));
+				loc.put("coordinates", coord);
+				loc.put("type", "Point");
+				nodo.put("location", loc);
+				resultado.add(nodo);
 			}
-
-			JSONObject nodo = new JSONObject();
-			nodo.put("tiempo", ((JSONObject) ((JSONObject) array.get(i)).get("duration")).get("value"));
-			JSONArray coord = new JSONArray();
-			JSONObject loc = new JSONObject();
-			coord.add(((JSONObject) ((JSONObject) array.get(i)).get("start_location")).get("lng"));
-			coord.add(((JSONObject) ((JSONObject) array.get(i)).get("start_location")).get("lat"));
-			loc.put("coordinates", coord);
-			loc.put("type", "Point");
-			nodo.put("location", loc);
-			resultado.add(nodo);
 
 		}
 

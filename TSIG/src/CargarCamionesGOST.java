@@ -1,3 +1,5 @@
+package camion;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -13,13 +15,12 @@ public class CargarCamionesGOST {
 
 	
 	private static String gost = "18.231.190.192";
-	
+
 	public static void main(String[] args) {
 		// TODO ESTA HARDCODEADO PARA CREAR UN SOLO CAMION, PARA LA VERSION FINAL AGREGAR MAS CAMIONES
-		
-		Double x = -56.2594684914509;
-		Double y =  -34.8433762543554;
-    	String json = obtenerJSONCamion(0,x,y);
+		Double x = -56.12416;
+		Double y =  -34.898242;
+    	String json = obtenerJSONCamion(1,x,y);
     	send(json);
 	}
 	
@@ -35,7 +36,7 @@ public class CargarCamionesGOST {
 				"      \"type\": \"Point\",\r\n" + 
 				"      \"coordinates\": [ <x>,<y>]\r\n" + 
 				"    }\r\n" + 
-				"  }],\r\n" + 				
+				"  }]\r\n" + 				
 				"}";
 		
 		post = post.replaceAll("<id>", String.valueOf(id));
@@ -45,7 +46,7 @@ public class CargarCamionesGOST {
 		return post;
 	}
 	
-public static void send(String input) {
+	public static void send(String input) {
 		
 		try {
 
