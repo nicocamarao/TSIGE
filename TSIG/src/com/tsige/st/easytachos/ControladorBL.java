@@ -1,4 +1,4 @@
-package camion;
+package com.tsige.st.easytachos;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -13,9 +13,8 @@ import com.google.gson.JsonParser;
 public class ControladorBL {
 
 	private static ControladorBL instance = null;
-	private static final String USER_AGENT = "Mozilla/5.0";
-	private static final String SERVER_IP = "18.231.190.192";
-	private static final String SERVER_PORT = "9080";
+	private static final String SERVER_IP = "192.168.1.34";
+	private static final String SERVER_PORT = "8080";
 	private static final String GET_CONTENEDORES_URL_1 = "http://" + SERVER_IP + ":" + SERVER_PORT
 			+ "/v1.0/Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id)&$select=id,Datastreams&$top=200&$skip=0";
 	private static final String GET_CONTENEDORES_URL_2 = "http://" + SERVER_IP + ":" + SERVER_PORT
@@ -23,12 +22,12 @@ public class ControladorBL {
 	private static final String GET_CAMIONES_URL = "http://" + SERVER_IP + ":" + SERVER_PORT
 			+ "/v1.0/Things?$filter=startswith(name,%27Camion%27)&$select=id&$top=500";
 
-	private HashMap<Integer, MiContenedor> contenedores;
-	private HashMap<Integer, Camion> camiones;
+	private HashMap<Long, MiContenedor> contenedores;
+	private HashMap<Long, Camion> camiones;
 
 	private ControladorBL() {
-		this.contenedores = new HashMap<Integer, MiContenedor>();
-		this.camiones = new HashMap<Integer, Camion>();
+		this.contenedores = new HashMap<Long, MiContenedor>();
+		this.camiones = new HashMap<Long, Camion>();
 
 		loadContenedoresFromServer(GET_CONTENEDORES_URL_1);
 		loadContenedoresFromServer(GET_CONTENEDORES_URL_2);
@@ -42,15 +41,15 @@ public class ControladorBL {
 		return instance;
 	}
 
-	public HashMap<Integer, MiContenedor> getContenedores() {
+	public HashMap<Long, MiContenedor> getContenedores() {
 		return this.contenedores;
 	}
 
-	public HashMap<Integer, Camion> getCamiones() {
+	public HashMap<Long, Camion> getCamiones() {
 		return this.camiones;
 	}
 
-	public MiContenedor getContenedor(Integer id) {
+	public MiContenedor getContenedor(Long id) {
 		try {
 			return contenedores.get(id);
 		} catch (Exception e) {
@@ -59,7 +58,7 @@ public class ControladorBL {
 		}
 	}
 
-	public Camion getCamion(Integer id) {
+	public Camion getCamion(Long id) {
 		try {
 			return camiones.get(id);
 		} catch (Exception e) {
@@ -80,14 +79,10 @@ public class ControladorBL {
 	private void loadContenedoresFromServer(String getContenedoresUrl) {
 		try {
 			URL url = new URL(getContenedoresUrl);
-			//Proxy proxy = new Proxy(Proxy.Type.HTTP, new
-			//		InetSocketAddress("proxysis", 8080));
-			HttpURLConnection con = (HttpURLConnection) url.openConnection(/*proxy*/);
+			HttpURLConnection con = (HttpURLConnection) url.openConnection();
 			con.setRequestMethod("GET");
-			//con.setRequestProperty("User-Agent", USER_AGENT);
 			int responseCode = con.getResponseCode();
-			System.out.println("GET Response Code :: " + responseCode);
-			if (responseCode == HttpURLConnection.HTTP_OK) { // success
+			if (responseCode == HttpURLConnection.HTTP_OK) {
 				BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
 				String inputLine;
 				StringBuffer response = new StringBuffer();
@@ -97,14 +92,12 @@ public class ControladorBL {
 				}
 				in.close();
 
-				// print result
+				// Parse del response json
 				String jsonString = response.toString();
-				System.out.println(jsonString);
-
-				// Json parse
 				JsonObject rootObj = new JsonParser().parse(jsonString).getAsJsonObject();
 				JsonArray jsonArrayContenedores = rootObj.getAsJsonArray("value");
 
+				// Se agregan contenedores al diccionario global
 				for (JsonElement je : jsonArrayContenedores) {
 					JsonObject jsonObjContenedor = je.getAsJsonObject();
 					int thingId = jsonObjContenedor.get("@iot.id").getAsInt();
@@ -112,7 +105,7 @@ public class ControladorBL {
 							.get("@iot.id").getAsInt();
 					int dsCapId = jsonObjContenedor.getAsJsonArray("Datastreams").get(0).getAsJsonObject()
 							.get("@iot.id").getAsInt();
-					this.contenedores.put(thingId, new MiContenedor(thingId, dsCapId, dsTempId));
+					this.contenedores.put(new Long(thingId), new MiContenedor(thingId, dsCapId, dsTempId));
 				}
 
 				// Inicia threads simuladores de sensores de contenedores
@@ -121,7 +114,7 @@ public class ControladorBL {
 				}
 
 			} else {
-				//System.out.println("Error en GET request: " + responseCode);
+				System.out.println("Error en GET request: " + responseCode);
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -129,17 +122,15 @@ public class ControladorBL {
 
 	}
 
+	// Hace el GET de todos los camiones con sus ubicaciones al servidor GOST, guarda los camiones en
+	// un diccionario global 'camiones' e instancia los threads simuladores de camiones 'Camion'.
 	private void loadCamionesFromServer(String getCamionesUrl) {
 		try {
 			URL url = new URL(getCamionesUrl);
-			//Proxy proxy = new Proxy(Proxy.Type.HTTP, new
-			//		InetSocketAddress("proxysis", 8080));
-			HttpURLConnection con = (HttpURLConnection) url.openConnection(/*proxy*/);
+			HttpURLConnection con = (HttpURLConnection) url.openConnection();
 			con.setRequestMethod("GET");
-			con.setRequestProperty("User-Agent", USER_AGENT);
 			int responseCode = con.getResponseCode();
-			System.out.println("GET Response Code :: " + responseCode);
-			if (responseCode == HttpURLConnection.HTTP_OK) { // success
+			if (responseCode == HttpURLConnection.HTTP_OK) {
 				BufferedReader in = new BufferedReader(new InputStreamReader(con.getInputStream()));
 				String inputLine;
 				StringBuffer response = new StringBuffer();
@@ -149,21 +140,19 @@ public class ControladorBL {
 				}
 				in.close();
 
-				// print result
+				// Parse del response json
 				String jsonString = response.toString();
-				System.out.println(jsonString);
-
-				// Json parse
 				JsonObject rootObj = new JsonParser().parse(jsonString).getAsJsonObject();
 				JsonArray jsonArrayCamiones = rootObj.getAsJsonArray("value");
 
+				// Se agregan camiones al diccionario global
 				for (JsonElement je : jsonArrayCamiones) {
 					JsonObject jsonObjCamion = je.getAsJsonObject();
 					int thingId = jsonObjCamion.get("@iot.id").getAsInt();
-					this.camiones.put(thingId, new Camion(thingId));
+					this.camiones.put(new Long(thingId), new Camion(thingId));
 				}
 
-				// Inicia threads simuladores de sensores de camiones
+				// Inicia threads simuladores de movimiento de camiones
 				for (Camion c : camiones.values()) {
 					new Thread(c).start();
 				}

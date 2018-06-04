@@ -1,13 +1,11 @@
-package camion;
+package com.tsige.st.easytachos;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
-import java.net.Proxy;
 import java.net.URL;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -20,7 +18,7 @@ public class MiContenedor implements Runnable {
 	private int thing;
 	private int datastreamCapacidad;
 	private int datastreamTemperatura;
-	private String gost = "18.231.190.192";
+	private String gost = "192.168.1.34";
 
 	public MiContenedor(int thing, int dsCap, int dsTemp) {
 		this.estado = "DISPONIBLE";
@@ -86,19 +84,14 @@ public class MiContenedor implements Runnable {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		
-		
-
 	}
 	
 	public void updateCapacidadEnGOST(Double capacidad) throws IOException
 	{
-		String u = "http://" + gost + ":9080/v1.0/Datastreams(" + datastreamCapacidad + ")/Observations";
+		String u = "http://" + gost + ":8080/v1.0/Datastreams(" + datastreamCapacidad + ")/Observations";
 		URL url = new URL(u);
 		JSONObject body = new JSONObject();
 		body.put("result", capacidad);
-		//Proxy proxy = new Proxy(Proxy.Type.HTTP, new
-		//		InetSocketAddress("proxysis", 8080));
 		HttpURLConnection conn = (HttpURLConnection) url.openConnection(/*proxy*/);
 		conn.setDoOutput(true);
 		conn.setRequestMethod("POST");
@@ -123,8 +116,6 @@ public class MiContenedor implements Runnable {
 			jstring += output;
 		}		
 		//System.out.println("CAPACIDAD ENVIADA AL SERVIDOR, RESPUESTA\n"+jstring);
-		conn.disconnect();		
-		
-		
+		conn.disconnect();
 	}
 }

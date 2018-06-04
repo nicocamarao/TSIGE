@@ -1,4 +1,5 @@
-package camion;
+package com.tsige.st.easytachos;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -12,45 +13,43 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 
-public class Camion implements Runnable{
+public class Camion implements Runnable {
 
 	int threshold = 40; // por defecto
 	JSONArray caminoaseguir = new JSONArray();
-	String gost = "18.231.190.192";
+	String gost = "192.168.1.34";
 	int id = 0;
-	LinkedList<Long> historico = new LinkedList<Long>();//array de historicos con tope, topehist
-	int topehist = 20; 
+	LinkedList<Long> historico = new LinkedList<Long>();// array de historicos con tope, topehist
+	int topehist = 20;
 
-	public Camion(int id)
-	{
-		this.id=id;	
-		
-	}	
-	
+	public Camion(int id) {
+		this.id = id;
+
+	}
+
 	@Override
 	public void run() {
 		// TODO Auto-generated method stub
-		try { 
-			
+		try {
+
 			ControladorBL cbl = ControladorBL.getInstance();
-			
-			//CAMBIAR POR GET DEL THING
+
+			// CAMBIAR POR GET DEL THING
 			JSONParser json = new JSONParser();
-			JSONObject jobj = (JSONObject) json.parse("{" + "\"@iot.id\": 337, \"location\":{\"coordinates\": [-56.12416, -34.898242]}}");
+			JSONObject jobj = (JSONObject) json
+					.parse("{" + "\"@iot.id\": 337, \"location\":{\"coordinates\": [-56.12416, -34.898242]}}");
 			while (true) {
 				Thread.sleep(400);
 				JSONObject resultado = buscarSiguiente(jobj);
 				JSONArray camino = obtenerCamino(jobj, resultado);
 
-				for (int i = 1, largo = camino.size(); largo > i; i++) {					
+				for (int i = 1, largo = camino.size(); largo > i; i++) {
 					long tiempo = Long.parseLong(String.valueOf(((JSONObject) camino.get(i)).get("tiempo")));
 					try {
-						Thread.sleep(tiempo
-								* 100/*
-										 * MULTIPLICAR POR 1000 PARA PASAR A
-										 * MILISEGUNDOS; PARA PROBAR SE DEJA EN
-										 * LO QUE VENGA
-										 */);
+						Thread.sleep(tiempo * 100/*
+													 * MULTIPLICAR POR 1000 PARA PASAR A MILISEGUNDOS; PARA PROBAR SE
+													 * DEJA EN LO QUE VENGA
+													 */);
 					} catch (InterruptedException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
@@ -58,7 +57,7 @@ public class Camion implements Runnable{
 					updateGOST((JSONObject) camino.get(i));
 
 				}
-				cbl.setEstado((Long)resultado.get("@iot.id"), "CAMION"); // pase por cotainer, setea el container en 0
+				cbl.setEstado((Long) resultado.get("@iot.id"), "CAMION"); // pase por cotainer, setea el container en 0
 
 				jobj = (JSONObject) camino.get(camino.size() - 1);
 			}
@@ -69,8 +68,8 @@ public class Camion implements Runnable{
 		}
 	}
 
-	public JSONObject buscarSiguiente(
-			JSONObject jsontacho/* JSON con los datos del GOST del container*/) throws ParseException, IOException, org.json.simple.parser.ParseException {
+	public JSONObject buscarSiguiente(JSONObject jsontacho/* JSON con los datos del GOST del container */)
+			throws ParseException, IOException, org.json.simple.parser.ParseException {
 
 		JSONParser json = new JSONParser();
 		/*
@@ -87,10 +86,14 @@ public class Camion implements Runnable{
 		 * ;
 		 */
 		int dist = -1;
-		URL url = new URL("http://" + gost + ":9080/v1.0/Locations?$filter=startswith(description,%27Contenedor%27)%20and%20geo.distance(location,%20geography%27POINT(" + ((JSONArray) ((JSONObject) jsontacho.get("location")).get("coordinates")).get(0) + "%20" + ((JSONArray) ((JSONObject) jsontacho.get("location")).get("coordinates")).get(1) + ")%27)%20lt%200.03");
-		//Proxy proxy = new Proxy(Proxy.Type.HTTP, new
-		//InetSocketAddress("proxysis", 8080));
-		HttpURLConnection conn = (HttpURLConnection) url.openConnection(/*proxy*/);
+		URL url = new URL("http://" + gost
+				+ ":8080/v1.0/Locations?$filter=startswith(description,%27Contenedor%27)%20and%20geo.distance(location,%20geography%27POINT("
+				+ ((JSONArray) ((JSONObject) jsontacho.get("location")).get("coordinates")).get(0) + "%20"
+				+ ((JSONArray) ((JSONObject) jsontacho.get("location")).get("coordinates")).get(1)
+				+ ")%27)%20lt%200.03");
+		// Proxy proxy = new Proxy(Proxy.Type.HTTP, new
+		// InetSocketAddress("proxysis", 8080));
+		HttpURLConnection conn = (HttpURLConnection) url.openConnection(/* proxy */);
 		conn.setRequestMethod("GET");
 		if (conn.getResponseCode() != 200) {
 			throw new RuntimeException("Failed : HTTP error code : " + conn.getResponseCode());
@@ -102,8 +105,7 @@ public class Camion implements Runnable{
 		while ((output = br.readLine()) != null) {
 			jstring += output;
 		}
-		conn.disconnect(); 
-		
+		conn.disconnect();
 
 		JSONObject siguiente = null;
 		JSONObject objeto = (JSONObject) json.parse(jstring);
@@ -111,14 +113,14 @@ public class Camion implements Runnable{
 		boolean enhist = false;
 		for (int i = 0, largo = resp.size(); i < largo; i++) {
 			// primero busco el tacho siguiente, más cercano al tacho actual
-			
-			 enhist = false;
-			
+
+			enhist = false;
+
 			for (int j = 0, l = historico.size(); j < l && !enhist; j++)
 				enhist = historico.get(j) == ((JSONObject) resp.get(i)).get("@iot.id");
-					
-			
-			if (((String)((JSONObject)resp.get(i)).get("name")).contains("contenedor") && !enhist && ((JSONObject) resp.get(i)).get("@iot.id") != ((JSONObject) jsontacho).get("@iot.id")) {
+
+			if (((String) ((JSONObject) resp.get(i)).get("name")).contains("contenedor") && !enhist
+					&& ((JSONObject) resp.get(i)).get("@iot.id") != ((JSONObject) jsontacho).get("@iot.id")) {
 
 				int ndist = distancia((JSONObject) resp.get(i), jsontacho); // se
 																			// puede
@@ -150,14 +152,17 @@ public class Camion implements Runnable{
 
 	};
 
-	public int distancia(JSONObject tacho1, JSONObject tacho2) throws IOException, ParseException, org.json.simple.parser.ParseException {
+	public int distancia(JSONObject tacho1, JSONObject tacho2)
+			throws IOException, ParseException, org.json.simple.parser.ParseException {
 
 		JSONParser json = new JSONParser();
 
 		JSONArray coord1 = ((JSONArray) ((JSONObject) tacho1.get("location")).get("coordinates"));
 		JSONArray coord2 = ((JSONArray) ((JSONObject) tacho2.get("location")).get("coordinates"));
 
-		String u = "https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins=" + coord1.get(1) + "," + coord1.get(0) + "&destinations=" + coord2.get(1) + "," + coord2.get(0) + "&key=AIzaSyCzfvttiB7u5kfWO1in02KC5nHEluo0_Z8";
+		String u = "https://maps.googleapis.com/maps/api/distancematrix/json?units=imperial&origins=" + coord1.get(1)
+				+ "," + coord1.get(0) + "&destinations=" + coord2.get(1) + "," + coord2.get(0)
+				+ "&key=AIzaSyCzfvttiB7u5kfWO1in02KC5nHEluo0_Z8";
 		URL url = new URL(u);
 		// Proxy proxy = new Proxy(Proxy.Type.HTTP, new
 		// InetSocketAddress("proxysis", 8080));
@@ -177,23 +182,29 @@ public class Camion implements Runnable{
 
 		JSONObject jsonaux = (JSONObject) json.parse(jstring);
 		JSONArray jarray = (JSONArray) jsonaux.get("rows");
-		JSONObject duration = (JSONObject) ((JSONObject) ((JSONArray) ((JSONObject) jarray.get(0)).get("elements")).get(0)).get("duration");
-		JSONObject distance = (JSONObject) ((JSONObject) ((JSONArray) ((JSONObject) jarray.get(0)).get("elements")).get(0)).get("distance");
+		JSONObject duration = (JSONObject) ((JSONObject) ((JSONArray) ((JSONObject) jarray.get(0)).get("elements"))
+				.get(0)).get("duration");
+		JSONObject distance = (JSONObject) ((JSONObject) ((JSONArray) ((JSONObject) jarray.get(0)).get("elements"))
+				.get(0)).get("distance");
 
 		conn.disconnect();
 
-		int resultado = Integer.parseInt(duration.get("value").toString()) + Integer.parseInt(distance.get("value").toString());
+		int resultado = Integer.parseInt(duration.get("value").toString())
+				+ Integer.parseInt(distance.get("value").toString());
 
 		return resultado;
 
 	};
 
-	public JSONArray obtenerCamino(JSONObject origen, JSONObject destino) throws IOException, ParseException, org.json.simple.parser.ParseException {
+	public JSONArray obtenerCamino(JSONObject origen, JSONObject destino)
+			throws IOException, ParseException, org.json.simple.parser.ParseException {
 
 		JSONArray o = (JSONArray) ((JSONObject) origen.get("location")).get("coordinates");
 		JSONArray d = (JSONArray) ((JSONObject) destino.get("location")).get("coordinates");
 
-		String u = "https://maps.googleapis.com/maps/api/directions/json?units=imperial&origin=" + o.get(1) + "," + o.get(0) + "&destination=" + d.get(1) + "," + d.get(0) + "&key=AIzaSyCJLTXZgybaCSMg_aiHJlPBkVQeKnZgMTE";
+		String u = "https://maps.googleapis.com/maps/api/directions/json?units=imperial&origin=" + o.get(1) + ","
+				+ o.get(0) + "&destination=" + d.get(1) + "," + d.get(0)
+				+ "&key=AIzaSyCJLTXZgybaCSMg_aiHJlPBkVQeKnZgMTE";
 
 		URL url = new URL(u);
 		// Proxy proxy = new Proxy(Proxy.Type.HTTP, new
@@ -216,7 +227,8 @@ public class Camion implements Runnable{
 
 		JSONObject camino = (JSONObject) json.parse(jstring);
 
-		JSONArray array = ((JSONArray) ((JSONObject) ((JSONArray) ((JSONObject) ((JSONArray) camino.get("routes")).get(0)).get("legs")).get(0)).get("steps"));
+		JSONArray array = ((JSONArray) ((JSONObject) ((JSONArray) ((JSONObject) ((JSONArray) camino.get("routes"))
+				.get(0)).get("legs")).get(0)).get("steps"));
 		JSONArray resultado = new JSONArray();
 		for (int i = 0, largo = array.size(); i < largo; i++) {
 			if (i == 0) {
@@ -230,7 +242,7 @@ public class Camion implements Runnable{
 				loc.put("type", "Point");
 				nodo.put("location", loc);
 				resultado.add(nodo);
-				
+
 				nodo = new JSONObject();
 				nodo.put("tiempo", ((JSONObject) ((JSONObject) array.get(i)).get("duration")).get("value"));
 				coord = new JSONArray();
@@ -264,7 +276,7 @@ public class Camion implements Runnable{
 
 	public void updateGOST(JSONObject ubicacion) throws IOException {
 
-		String u = "http://" + gost + ":9080/v1.0/Things(" + id + ")/Locations";
+		String u = "http://" + gost + ":8080/v1.0/Things(" + id + ")/Locations";
 		URL url = new URL(u);
 		JSONObject body = new JSONObject();
 
@@ -274,8 +286,8 @@ public class Camion implements Runnable{
 		body.put("location", (JSONObject) ubicacion.get("location"));
 
 		/*
-		 * Proxy proxy = new Proxy(Proxy.Type.HTTP, new
-		 * InetSocketAddress("proxysis", 8080));
+		 * Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress("proxysis",
+		 * 8080));
 		 */
 		HttpURLConnection conn = (HttpURLConnection) url.openConnection(/* proxy */);
 		conn.setDoOutput(true);
@@ -302,7 +314,5 @@ public class Camion implements Runnable{
 		conn.disconnect();
 
 	}
-
-	
 
 }

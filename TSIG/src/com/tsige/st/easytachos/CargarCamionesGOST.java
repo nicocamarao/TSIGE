@@ -1,20 +1,18 @@
-package camion;
+package com.tsige.st.easytachos;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
-import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
-import java.net.Proxy;
 import java.net.URL;
 
 
 public class CargarCamionesGOST {
 
 	
-	private static String gost = "18.231.190.192";
+	private static String gost = "192.168.1.34";
 
 	public static void main(String[] args) {
 		// TODO ESTA HARDCODEADO PARA CREAR UN SOLO CAMION, PARA LA VERSION FINAL AGREGAR MAS CAMIONES
@@ -49,11 +47,8 @@ public class CargarCamionesGOST {
 	public static void send(String input) {
 		
 		try {
-
-			URL url = new URL("http://"+gost+":9080/v1.0/Things");
-			//Proxy proxy = new Proxy(Proxy.Type.HTTP, new
-			//		InetSocketAddress("proxysis", 8080));
-			HttpURLConnection conn = (HttpURLConnection) url.openConnection(/*proxy*/);
+			URL url = new URL("http://"+gost+":8080/v1.0/Things");
+			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
 			conn.setDoOutput(true);
 			conn.setRequestMethod("POST");
 			conn.setRequestProperty("Content-Type", "application/json");

@@ -1,4 +1,4 @@
-package camion;
+package com.tsige.st.easytachos;
 
 import java.io.IOException;
 

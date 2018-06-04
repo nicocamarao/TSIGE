@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Tachos - map</title>
+<style>
+#map {
+	width: 100%;
+	height: 700px;
+}
+</style>
+
+<!-- jquery google CDN -->
+<script
+	src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+
+<!-- jquery local -->
+<!-- <script src="js/jquery-3.3.1.js"></script> -->
+
+<!-- ToDo: pasar scripts a js externo -->
+<!-- <script src="js/tachos.js"</script> -->
+
+<script async defer
+	src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC1gYO7H0bQKLqPYL0m0Th4TKxSrXq9Dwk&callback=initMap"></script>
+
+<script>
+	//ToDo: obtener siempre mirando nextLink
+
+	// URL base del servidor GOST
+	//const ST_SERVER_BASE_URL = "http://localhost:8080/v1.0/";
+	const ST_SERVER_BASE_URL = "http://192.168.1.34:8080/v1.0/";
+
+	// Devuele camiones con ultima location
+	const GET_CAMIONES_LOC = ST_SERVER_BASE_URL + "Things?$filter=startswith(name,'Camion')&$expand=Locations($select=location%3B$top=1)&$select=id,name,Locations&$top=500";
+
+	// Devuelve contenedores con ultima ubicación y ultima observación
+	const GET_CONTENEDORES_LOC_OBS = ST_SERVER_BASE_URL + "Things?$filter=startswith(name,'Contenedor')&$expand=Locations($top=1%3B$select=location),Datastreams($select=id,Observations),Datastreams/Observations($top=1%3B$select=result)&$select=id,name,Datastreams,Locations&$top=200&$skip=<skip>";
+
+	// Devuelve contenedores con  ultima observación
+	//const GET_CONTENEDORES_OBS = ST_SERVER_BASE_URL + "Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id,Observations),Datastreams/Observations($top=1%3B$select=result)&$select=id,name,Datastreams&$top=200&$skip=<skip>";
+
+	// Tiempos de actualización de los camiones (ms)
+	const CAMIONES_UPDATE_INTERVAL = 5000;
+
+	// Tiempos de actualización de los contenedores (ms)
+	const CONTENEDORES_UPDATE_INTERVAL = 15000;
+
+	var map = null;
+	var dicCamiones = {};
+	var dicContenedores = {};
+
+	// Inicializa el mapa
+	function initMap() {
+		map = new google.maps.Map(document.getElementById('map'), {
+			zoom: 14,
+			center: new google.maps.LatLng(-34.918231, -56.166501), // FING
+		});
+		
+		// Obtiene periodicamente las ubicaciones de los camiones y actualiza el mapa
+		setTimeout(ajaxGetCamiones, 5000);
+		
+		// Obtiene por primera vez los contenedores con ubicacion y ultima observacion
+		setTimeout(function() { ajaxGetContenedores(0); }, 5000);
+		setTimeout(function() { ajaxGetContenedores(200); }, 5000);
+		
+		// Obtiene por primera vez los contenedores con ubicacion y ultima observacion
+		setTimeout(function() { ajaxGetContenedoresObs(0); }, CONTENEDORES_UPDATE_INTERVAL);
+		setTimeout(function() { ajaxGetContenedoresObs(200); }, CONTENEDORES_UPDATE_INTERVAL);
+		
+		//DEBUG
+		//setInterval(debugMoveCamion, 3000);
+	}
+
+	<!-- function debugMoveCamion() { -->
+		<!-- var camion = dicCamiones[344]; -->
+		<!-- if (camion != undefined) { -->
+			<!-- var marker = camion.marker; -->
+			<!-- camion.Locations["0"].location.coordinates[1] += 0.001; -->
+			<!-- camion.Locations["0"].location.coordinates[0] += 0.001; -->
+			<!-- var latLng = new google.maps.LatLng(camion.Locations["0"].location.coordinates[1], camion.Locations["0"].location.coordinates[0]); -->
+			<!-- marker.setMap(null); -->
+			<!-- marker.setMap(map); -->
+			<!-- marker.setPosition(latLng); -->
+		<!-- } -->
+	<!-- } -->
+	
+	function ajaxGetCamiones() {
+		$.ajax({
+			dataType: "json",
+			url: GET_CAMIONES_LOC,
+			success: function (response) {
+				addOrUpdateCamiones(response.value);
+				setTimeout(ajaxGetCamiones, CAMIONES_UPDATE_INTERVAL);
+			},
+			error: function () {
+				setTimeout(ajaxGetCamiones, CAMIONES_UPDATE_INTERVAL);
+			}
+		});
+	}
+
+	function ajaxGetContenedores(skip) {
+		var urlGet = GET_CONTENEDORES_LOC_OBS.replace('<skip>', skip);
+		$.ajax({
+			dataType: "json",
+			url: urlGet,
+			success: function (response) {
+				addContenedores(response.value);
+			}
+		});
+	}
+
+	function ajaxGetContenedoresObs(skip) {
+		var urlGet = GET_CONTENEDORES_LOC_OBS.replace('<skip>', skip);
+		$.ajax({
+			dataType: "json",
+			url: urlGet,
+			success: function (response) {
+				updateContenedoresObs(response.value);
+				setTimeout(function() { ajaxGetContenedoresObs(skip); }, CONTENEDORES_UPDATE_INTERVAL);
+			},
+			error: function () {
+				setTimeout(function() { ajaxGetContenedoresObs(skip); }, CONTENEDORES_UPDATE_INTERVAL);
+			}
+		});
+	}
+
+	// camiones deben tener id y una location
+	function addOrUpdateCamiones(camiones) {
+		for (var i = 0; i < camiones.length; i++) {
+			var c = camiones[i];
+			var cDic = dicCamiones[c["@iot.id"]];
+			
+			if (cDic == undefined) {
+				addThing(parseThingJSON(c), dicCamiones);
+			} else if (c.Locations[0].location != cDic.Locations[0].location) {
+				updateThingLocation(c, dicCamiones);
+			}
+		}
+	}
+
+	// contenedores deben tener id, location, 2 ds con ids y una observacion de cada ds
+	function addContenedores(contenedores) {
+		for (var i = 0; i < contenedores.length; i++) {
+			var c = contenedores[i];
+			addThing(parseThingJSON(c), dicContenedores);
+		}
+	}
+
+	// contenedoresObs deben tener id, 2 ds con ids y una observacion de cada ds
+	function updateContenedoresObs(contenedoresObs) {
+		for (var i = 0; i < contenedoresObs.length; i++) {
+			var c = contenedoresObs[i];
+			var cDic = dicContenedores[c["@iot.id"]];
+			
+			if (cDic != undefined) {
+				if ((cDic.Datastreams == undefined)
+				    || (hasObservationsInDatastream(c,0))
+				    || (hasObservationsInDatastream(c,1))
+				   )
+				{
+					updateContenedorObservations(c);
+				}
+			}
+			//si aparece contenedor nuevo lo ignora, para que lo agregue igual llamar 'addOrUpdateContenedores'
+		}
+	}
+
+	function hasObservationsInDatastream(thing, ds) {
+		return thing.Datastreams != undefined
+			&& thing.Datastreams[ds].hasOwnProperty('Observations')
+			&& thing.Datastreams[ds].Observations != undefined;
+	}
+
+	//ToDo: No sustituír, agregar con cierto máximo
+	function updateContenedorObservations(c) {
+		dicContenedores[c["@iot.id"]].Observations = c.Observations;
+		dicContenedores[c["@iot.id"]].marker.infoWindow.setContent(contentForThing(c));
+	}
+
+	// Retorna el objeto correspondiente a la Thing t
+	function parseThingJSON(t) {
+		// quita caracteres no permitidos por js como nombres de variables
+		return JSON.parse(JSON.stringify(t).replace(/\w*@iot./g,""));
+	}
+
+	// Crea un marker para la Thing t y la agrega al diccionario global correspondiente
+	function addThing(t, dicThing) {
+		var latLng = new google.maps.LatLng(t.Locations[0].location.coordinates[1], t.Locations[0].location.coordinates[0]);
+		var bounds = new google.maps.LatLngBounds();
+		bounds.extend(latLng);
+
+		if (t.name.startsWith("Camion"))
+		{
+			var icono = {
+				url: "img/camion.png",
+				scaledSize: new google.maps.Size(35, 35), //escala 25%, 25% la imagen
+				origin: new google.maps.Point(0,0),
+				anchor: new google.maps.Point(0, 0)
+			};
+			var marker = new google.maps.Marker({
+				position: latLng,
+				map: map,
+				title: t.name,
+				icon: icono,
+				zIndex: 9999
+			});
+		} else {
+			var icono = {
+				url: "img/contenedor_vacio.png",
+				scaledSize: new google.maps.Size(20, 20), //escala 25%, 25% la imagen
+				origin: new google.maps.Point(0,0),
+				anchor: new google.maps.Point(0, 0)
+			};
+			var marker = new google.maps.Marker({
+				position: latLng,
+				map: map,
+				title: t.name,
+				icon: icono
+			});
+		}
+		t.marker = marker;
+		addInfoWindow(t);
+		dicThing[t.id] = t;
+	}
+
+	function addInfoWindow(thing) {
+		var infoContent = contentForThing(thing);
+		var infoWindow = new google.maps.InfoWindow({content: infoContent});
+		thing.marker.infoWindow = infoWindow;
+		
+		thing.marker.addListener('click', function() {
+			thing.marker.infoWindow.open(map, thing.marker);
+		});
+	}
+
+
+	function updateThingLocation(t, dicThing) {
+		dicThing[t["@iot.id"]].Locations[0].location = t.Locations[0].location;
+		updateMarkerPosition(dicThing[t["@iot.id"]].marker, dicThing[t["@iot.id"]].Locations[0].location);
+	}
+
+	//ToDo: quedan los marker en varias ubicaciones
+	function updateMarkerPosition(marker, stLocation) {
+		var latLng = new google.maps.LatLng(stLocation.coordinates[1], stLocation.coordinates[0])
+		marker.setPosition(latLng);
+	}
+
+	function contentForThing(t) {
+		var contentString;
+		if (t.name.startsWith("Camion")) {
+			contentString = "<h2>" + t.name + "</h2>"
+				+ "<hr>"  + "<p>Location: " + t.marker.getPosition().toUrlValue(6) + "</p>";
+		} else if (t.name.startsWith("Contenedor")) {
+			var temp = hasObservationsInDatastream(t, 0) ? t.Datastreams[0].Observations[0].result + " %" : 'No data';
+			var nivelCarga =  hasObservationsInDatastream(t, 1) ? t.Datastreams[1].Observations[0].result + " °C" : 'No data';
+			contentString = "<h2>" + t.name + "</h2>" + "<hr>" 
+				+ "<p>Nivel de carga: " + temp + "</p>"
+				+ "<p>Temperatura:    " + nivelCarga + "</p>";
+		}
+		return contentString;
+	}
+</script>
+
+</head>
+
+
+<body>
+	<div id="map"></div>
+</body>
+
+</html>

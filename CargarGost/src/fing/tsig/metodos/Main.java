@@ -129,7 +129,7 @@ public class Main {
 		
 		try {
 
-			URL url = new URL("http://localhost:8080/v1.0/Things");
+			URL url = new URL("http://192.168.1.34:8080/v1.0/Things");
 			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
 			conn.setDoOutput(true);
 			conn.setRequestMethod("POST");
