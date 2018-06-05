@@ -126,7 +126,8 @@ public class Camion implements Runnable{
 					}
 				}				
 			}
-		
+			coef = String.valueOf((Integer.parseInt(coef)*2));
+			coef = coef.length() == 3 ? coef : (coef.length() == 2 ? "0"+coef : "00"+coef);
 		}
 		for (int i = 0, largocandidatos = arraycandidatos.size(); i < largocandidatos; i++) {
 			// primero busco el tacho siguiente, más cercano al tacho actual				
