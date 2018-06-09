@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>TSIGE - Ubicación y seguimiento</title>
+
+<style>
+body, html {
+  height: 100%;
+  width: 100%;
+  margin:0;
+}
+
+#map {
+	width: 100%;
+	height: 100%;
+}
+</style>
+
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+<script async defer src="https://maps.googleapis.com/maps/api/js?key=AIzaSyC1gYO7H0bQKLqPYL0m0Th4TKxSrXq9Dwk&callback=initMap"></script>
+
+<script>
+	// URL base del servidor GOST
+	//const ST_SERVER_BASE_URL = "http://localhost:8080/v1.0/";
+	const ST_SERVER_BASE_URL = "http://192.168.1.32:8080/v1.0/";
+
+	// Devuele camiones con ultima location
+	const GET_CAMIONES_LOC = ST_SERVER_BASE_URL + "Things?$filter=startswith(name,'Camion')&$expand=Locations($select=location%3B$top=1)&$select=id,name,Locations&$top=500";
+
+	// Devuelve contenedores con ultima ubicación y ultima observación
+	const GET_CONTENEDORES_LOC_OBS = ST_SERVER_BASE_URL + "Things?$filter=startswith(name,'Contenedor')&$expand=Locations($top=1%3B$select=location),Datastreams($select=id,Observations),Datastreams/Observations($top=1%3B$select=result)&$select=id,name,Datastreams,Locations&$top=200&$skip=<skip>";
+
+	// Tiempos de actualización de los camiones (ms)
+	const CAMIONES_UPDATE_INTERVAL = 3000;
+
+	// Tiempos de actualización de los contenedores (ms)
+	const CONTENEDORES_UPDATE_INTERVAL = 10000;
+
+	var map = null;
+	var dicCamiones = {};
+	var dicContenedores = {};
+
+	// Inicializa el mapa
+	function initMap() {
+		map = new google.maps.Map(document.getElementById('map'), {
+			zoom: 14,
+			center: new google.maps.LatLng(-34.918231, -56.166501), // FING
+			styles: [ { "featureType": "all", "elementType": "all", "stylers": [ { "visibility": "on" } ] }, { "featureType": "all", "elementType": "labels", "stylers": [ { "visibility": "off" }, { "saturation": "-100" } ] }, { "featureType": "all", "elementType": "labels.text.fill", "stylers": [ { "saturation": 36 }, { "color": "#000000" }, { "lightness": 40 }, { "visibility": "off" } ] }, { "featureType": "all", "elementType": "labels.text.stroke", "stylers": [ { "visibility": "off" }, { "color": "#000000" }, { "lightness": 16 } ] }, { "featureType": "all", "elementType": "labels.icon", "stylers": [ { "visibility": "off" } ] }, { "featureType": "administrative", "elementType": "geometry.fill", "stylers": [ { "color": "#000000" }, { "lightness": 20 } ] }, { "featureType": "administrative", "elementType": "geometry.stroke", "stylers": [ { "color": "#000000" }, { "lightness": 17 }, { "weight": 1.2 } ] }, { "featureType": "landscape", "elementType": "geometry", "stylers": [ { "color": "#000000" }, { "lightness": 20 } ] }, { "featureType": "landscape", "elementType": "geometry.fill", "stylers": [ { "color": "#4d6059" } ] }, { "featureType": "landscape", "elementType": "geometry.stroke", "stylers": [ { "color": "#4d6059" } ] }, { "featureType": "landscape.natural", "elementType": "geometry.fill", "stylers": [ { "color": "#4d6059" } ] }, { "featureType": "poi", "elementType": "geometry", "stylers": [ { "lightness": 21 } ] }, { "featureType": "poi", "elementType": "geometry.fill", "stylers": [ { "color": "#4d6059" } ] }, { "featureType": "poi", "elementType": "geometry.stroke", "stylers": [ { "color": "#4d6059" } ] }, { "featureType": "road", "elementType": "geometry", "stylers": [ { "visibility": "on" }, { "color": "#7f8d89" } ] }, { "featureType": "road", "elementType": "geometry.fill", "stylers": [ { "color": "#7f8d89" } ] }, { "featureType": "road.highway", "elementType": "geometry.fill", "stylers": [ { "color": "#7f8d89" }, { "lightness": 17 } ] }, { "featureType": "road.highway", "elementType": "geometry.stroke", "stylers": [ { "color": "#7f8d89" }, { "lightness": 29 }, { "weight": 0.2 } ] }, { "featureType": "road.arterial", "elementType": "geometry", "stylers": [ { "color": "#000000" }, { "lightness": 18 } ] }, { "featureType": "road.arterial", "elementType": "geometry.fill", "stylers": [ { "color": "#7f8d89" } ] }, { "featureType": "road.arterial", "elementType": "geometry.stroke", "stylers": [ { "color": "#7f8d89" } ] }, { "featureType": "road.local", "elementType": "geometry", "stylers": [ { "color": "#000000" }, { "lightness": 16 } ] }, { "featureType": "road.local", "elementType": "geometry.fill", "stylers": [ { "color": "#7f8d89" } ] }, { "featureType": "road.local", "elementType": "geometry.stroke", "stylers": [ { "color": "#7f8d89" } ] }, { "featureType": "transit", "elementType": "geometry", "stylers": [ { "color": "#000000" }, { "lightness": 19 } ] }, { "featureType": "water", "elementType": "all", "stylers": [ { "color": "#2b3638" }, { "visibility": "on" } ] }, { "featureType": "water", "elementType": "geometry", "stylers": [ { "color": "#2b3638" }, { "lightness": 17 } ] }, { "featureType": "water", "elementType": "geometry.fill", "stylers": [ { "color": "#24282b" } ] }, { "featureType": "water", "elementType": "geometry.stroke", "stylers": [ { "color": "#24282b" } ] }, { "featureType": "water", "elementType": "labels", "stylers": [ { "visibility": "off" } ] }, { "featureType": "water", "elementType": "labels.text", "stylers": [ { "visibility": "off" } ] }, { "featureType": "water", "elementType": "labels.text.fill", "stylers": [ { "visibility": "off" } ] }, { "featureType": "water", "elementType": "labels.text.stroke", "stylers": [ { "visibility": "off" } ] }, { "featureType": "water", "elementType": "labels.icon", "stylers": [ { "visibility": "off" } ] } ]
+		});
+		
+		// Obtiene periodicamente las ubicaciones de los camiones y actualiza el mapa
+		setTimeout(ajaxGetCamiones, 5000);
+		
+		// Obtiene por primera vez los contenedores con ubicacion y ultima observacion
+		setTimeout(function() { ajaxGetContenedores(0); }, 5000);
+		setTimeout(function() { ajaxGetContenedores(200); }, 5000);
+		
+		// Obtiene por primera vez los contenedores con ubicacion y ultima observacion
+		setTimeout(function() { ajaxGetContenedoresObs(0); }, CONTENEDORES_UPDATE_INTERVAL);
+		setTimeout(function() { ajaxGetContenedoresObs(200); }, CONTENEDORES_UPDATE_INTERVAL);
+
+	}
+	
+	function ajaxGetCamiones() {
+		$.ajax({
+			dataType: "json",
+			url: GET_CAMIONES_LOC,
+			success: function (response) {
+				addOrUpdateCamiones(response.value);
+				setTimeout(ajaxGetCamiones, CAMIONES_UPDATE_INTERVAL);
+			},
+			error: function () {
+				setTimeout(ajaxGetCamiones, CAMIONES_UPDATE_INTERVAL);
+			}
+		});
+	}
+
+	function ajaxGetContenedores(skip) {
+		var urlGet = GET_CONTENEDORES_LOC_OBS.replace('<skip>', skip);
+		$.ajax({
+			dataType: "json",
+			url: urlGet,
+			success: function (response) {
+				addContenedores(response.value);
+			}
+		});
+	}
+
+	function ajaxGetContenedoresObs(skip) {
+		var urlGet = GET_CONTENEDORES_LOC_OBS.replace('<skip>', skip);
+		$.ajax({
+			dataType: "json",
+			url: urlGet,
+			success: function (response) {
+				updateContenedoresObs(response.value);
+				setTimeout(function() { ajaxGetContenedoresObs(skip); }, CONTENEDORES_UPDATE_INTERVAL);
+			},
+			error: function () {
+				setTimeout(function() { ajaxGetContenedoresObs(skip); }, CONTENEDORES_UPDATE_INTERVAL);
+			}
+		});
+	}
+
+	// camiones deben tener id y una location
+	function addOrUpdateCamiones(camiones) {
+		for (var i = 0; i < camiones.length; i++) {
+			var c = camiones[i];
+			var cDic = dicCamiones[c["@iot.id"]];
+			
+			if (cDic == undefined) {
+				addCamion(parseThingJSON(c), dicCamiones);
+			} else if (c.Locations[0].location != cDic.Locations[0].location) {
+				updateThingLocation(c, dicCamiones);
+			}
+		}
+	}
+
+	// contenedores deben tener id, location, 2 ds con ids y una observacion de cada ds
+	function addContenedores(contenedores) {
+		for (var i = 0; i < contenedores.length; i++) {
+			var c = contenedores[i];
+			addContenedor(parseThingJSON(c));
+		}
+	}
+
+	// contenedoresObs deben tener id, 2 ds con ids y una observacion de cada ds
+	function updateContenedoresObs(contenedoresObs) {
+		for (var i = 0; i < contenedoresObs.length; i++) {
+			var c = contenedoresObs[i];
+			var id = c["@iot.id"];
+			var cDic = dicContenedores[id];
+			
+			if (cDic != undefined) {
+				if ((cDic.Datastreams == undefined)
+				    || (hasObservationsInDatastream(c,0))
+				    || (hasObservationsInDatastream(c,1))
+				   )
+				{
+					var obsCap = hasObservationsInDatastream(c, 0) ? c.Datastreams[0].Observations[0] : null;
+					var cap = obsCap != null ? obsCap.result : null;
+					var obsTemp = hasObservationsInDatastream(c, 1) ? c.Datastreams[1].Observations[0] : null;
+					var temp =  obsTemp != null ? obsTemp.result : null;
+					
+					// Agrega observacion al principio y si hay más de 100 quita las ultimas
+					if (cap != null) {
+						 cDic.Datastreams[0].Observations.unshift(obsCap);
+						 while (cDic.Datastreams[0].Observations.length > 100) {
+							cDic.Datastreams[0].Observations.pop();
+						 }
+					}
+					if (temp != null) {
+						cDic.Datastreams[1].Observations.unshift(obsTemp);
+						while (cDic.Datastreams[1].Observations.length > 100) {
+							cDic.Datastreams[1].Observations.pop();
+						}
+					}
+					cDic.marker.setIcon(iconForContenedor(temp, cap));
+					cDic.marker.infoWindow.setContent(contentForContenedor(cDic.name, temp, cap));
+				}
+			}
+			//si aparece contenedor nuevo lo ignora, para que lo agregue igual llamar 'addOrUpdateContenedores'
+		}
+	}
+	
+	function iconForContenedor(temp, cap) {
+		var img = null;
+		if (temp != null && temp > 60) {
+			img = "img/contenedor_fuego.png";
+		} else {
+			if (cap == null || cap < 34) {
+				img =  "img/contenedor_verde.png";
+			} else if (cap < 67) {
+				img =  "img/contenedor_amarillo.png";
+			} else {
+				img =  "img/contenedor_rojo.png";
+			}
+		}
+		var ic = {
+			url: img,
+			scaledSize: new google.maps.Size(20, 20), //escala 25%, 25% la imagen
+			origin: new google.maps.Point(0,0),
+			anchor: new google.maps.Point(0, 0)
+		};
+		return ic;
+	}
+
+	function hasObservationsInDatastream(thing, ds) {
+		return thing.Datastreams != undefined
+			&& thing.Datastreams[ds].hasOwnProperty('Observations')
+			&& thing.Datastreams[ds].Observations != undefined;
+	}
+
+	// Retorna el objeto correspondiente a la Thing t
+	function parseThingJSON(t) {
+		// quita caracteres no permitidos por js como nombres de variables
+		return JSON.parse(JSON.stringify(t).replace(/\w*@iot./g,""));
+	}
+
+	// Crea un marker para la Thing t y la agrega al diccionario global correspondiente
+	function addCamion(t) {
+		var latLng = new google.maps.LatLng(t.Locations[0].location.coordinates[1], t.Locations[0].location.coordinates[0]);
+		var bounds = new google.maps.LatLngBounds();
+		bounds.extend(latLng);
+
+		var ic = {
+			url: "img/camion.png",
+			scaledSize: new google.maps.Size(35, 35), //escala 25%, 25% la imagen
+			origin: new google.maps.Point(0,0),
+			anchor: new google.maps.Point(0, 0)
+		};
+		var marker = new google.maps.Marker({
+			position: latLng,
+			map: map,
+			title: t.name,
+			icon: ic,
+			zIndex: 9999
+		});
+		
+		t.marker = marker;
+		addInfoWindowCamion(t);
+		dicCamiones[t.id] = t;
+	}
+	
+	function addContenedor(t) {
+		var latLng = new google.maps.LatLng(t.Locations[0].location.coordinates[1], t.Locations[0].location.coordinates[0]);
+		var bounds = new google.maps.LatLngBounds();
+		bounds.extend(latLng);
+		
+		var cap = getCapContenedor(t); 
+		var temp = getTempContenedor(t); 
+
+		var ic = iconForContenedor(temp, cap);
+		var marker = new google.maps.Marker({
+			position: latLng,
+			map: map,
+			title: t.name,
+			icon: ic
+		});
+		
+		t.marker = marker;
+		addInfoWindowContenedor(t);
+		dicContenedores[t.id] = t;
+	}
+	
+	function getCapContenedor(t) {
+		return hasObservationsInDatastream(t, 0) ? t.Datastreams[0].Observations[0].result : null;
+	}
+	
+	function getTempContenedor(t) {
+		return hasObservationsInDatastream(t, 1) ? t.Datastreams[1].Observations[0].result : null;
+	}
+	
+	function addInfoWindowCamion(t) {
+		var infoContent = contentForCamion(t);
+		var infoWindow = new google.maps.InfoWindow({content: infoContent});
+		t.marker.infoWindow = infoWindow;
+		
+		t.marker.addListener('click', function() {
+			t.marker.infoWindow.open(map, t.marker);
+		});
+	}
+	
+	function addInfoWindowContenedor(t) {
+		var temp = getTempContenedor(t)
+		var cap =  getCapContenedor(t);
+		var infoContent = contentForContenedor(t.name, temp, cap);
+		var infoWindow = new google.maps.InfoWindow({content: infoContent});
+		t.marker.infoWindow = infoWindow;
+		t.marker.addListener('click', function() {
+			t.marker.infoWindow.open(map, t.marker);
+		});
+	}
+
+	function updateThingLocation(t, dicThing) {
+		dicThing[t["@iot.id"]].Locations[0].location = t.Locations[0].location;
+		updateMarkerPosition(dicThing[t["@iot.id"]].marker, dicThing[t["@iot.id"]].Locations[0].location);
+	}
+
+	function updateMarkerPosition(marker, stLocation) {
+		var latLng = new google.maps.LatLng(stLocation.coordinates[1], stLocation.coordinates[0])
+		marker.setPosition(latLng);
+	}
+
+	function contentForCamion(t) {
+		var contentString;
+		contentString = "<h2>" + t.name + "</h2>"
+			+ "<hr>"  + "<p>Location: " + t.marker.getPosition().toUrlValue(6) + "</p>";
+		return contentString;
+	}
+	
+	function contentForContenedor(name, temp, cap) {
+		var contentString;
+		var tempStr = temp != null ? temp + " °C" : 'No data';
+		var capStr =  cap != null ? cap + " %" : 'No data';
+		contentString = "<h2>" + name + "</h2>" + "<hr>" 
+			+ "<p>Nivel de carga: " + capStr + "</p>"
+			+ "<p>Temperatura:    " + tempStr + "</p>";
+		return contentString;
+	}
+	
+	
+</script>
+
+</head>
+
+
+<body>
+	<div id="map"></div>
+</body>
+
+</html>
