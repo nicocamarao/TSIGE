@@ -1,4 +1,4 @@
-
+package camion;
 import java.io.IOException;
 
 public class Main_Contenedores_Camiones {
@@ -6,7 +6,8 @@ public class Main_Contenedores_Camiones {
 	public static void main(String[] args) throws IOException {
 		
 		System.out.println("Iniciando...");
-		ControladorBL.getInstance();
+		ControladorBL singleton = ControladorBL.getInstance();
+		singleton.cargar();
 		System.out.println("Carga finalizada...");
 		//System.console().readLine();
 	}

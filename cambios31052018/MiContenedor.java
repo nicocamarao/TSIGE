@@ -1,4 +1,4 @@
-
+package camion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -27,7 +27,7 @@ public class MiContenedor implements Runnable {
 		this.thing = thing;
 		this.datastreamCapacidad = dsCap;
 		this.datastreamTemperatura = dsTemp;
-		this.capacidad = 0.0;
+		this.capacidad = 50.0;
 		this.barrio  = barrio;
 	}
 	
@@ -49,8 +49,8 @@ public class MiContenedor implements Runnable {
 		try {
 			while (true) {
 				randomtime += (long) ThreadLocalRandom.current().nextDouble(1000, 5000)*20;
-				if (thing == 224)
-					System.out.println("Tiempo "+randomtime+" Capacidad "+capacidad);
+				/*if (thing == 224)
+					System.out.println("Tiempo "+randomtime+" Capacidad "+capacidad);*/
 				Thread.sleep(randomtime/20);
 				// capacidad
 				Double random = ThreadLocalRandom.current().nextDouble(0, 1);

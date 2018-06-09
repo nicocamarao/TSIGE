@@ -1,3 +1,4 @@
+package camion;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
@@ -11,37 +12,41 @@ import com.google.gson.JsonParser;
 
 public class ControladorBL {
 
-	private static ControladorBL instance = null;
+	private static ControladorBL instance = new ControladorBL();
 	private static final String USER_AGENT = "Mozilla/5.0";
 	private static final String SERVER_IP = "18.231.190.192";
 	private static final String SERVER_PORT = "9080";
 	private static final String GET_CONTENEDORES_URL_1 = "http://" + SERVER_IP + ":" + SERVER_PORT
-			+ "/v1.0/Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id)&$select=id,Datastreams&$top=200&$skip=0";
+			+ "/v1.0/Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id)&$select=id,properties,Datastreams&$top=100&$skip=0";
 	private static final String GET_CONTENEDORES_URL_2 = "http://" + SERVER_IP + ":" + SERVER_PORT
-			+ "/v1.0/Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id)&$select=id,Datastreams&$top=200&$skip=200";
+			+ "/v1.0/Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id)&$select=id,properties,Datastreams&$top=100&$skip=100";
+	private static final String GET_CONTENEDORES_URL_3 = "http://" + SERVER_IP + ":" + SERVER_PORT
+			+ "/v1.0/Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id)&$select=id,properties,Datastreams&$top=100&$skip=200";
+	private static final String GET_CONTENEDORES_URL_4 = "http://" + SERVER_IP + ":" + SERVER_PORT
+			+ "/v1.0/Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id)&$select=id,properties,Datastreams&$top=100&$skip=300";
+	private static final String GET_CONTENEDORES_URL_5 = "http://" + SERVER_IP + ":" + SERVER_PORT
+			+ "/v1.0/Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id)&$select=id,properties,Datastreams&$top=100&$skip=400";
+	private static final String GET_CONTENEDORES_URL_6 = "http://" + SERVER_IP + ":" + SERVER_PORT
+			+ "/v1.0/Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id)&$select=id,properties,Datastreams&$top=100&$skip=500";
+	private static final String GET_CONTENEDORES_URL_7 = "http://" + SERVER_IP + ":" + SERVER_PORT
+			+ "/v1.0/Things?$filter=startswith(name,'Contenedor')&$expand=Datastreams($select=id)&$select=id,properties,Datastreams&$top=100&$skip=600";
+	
 	private static final String GET_CAMIONES_URL = "http://" + SERVER_IP + ":" + SERVER_PORT
-			+ "/v1.0/Things?$filter=startswith(name,%27Camion%27)&$select=id&$top=500";
+			+ "/v1.0/Things?$filter=startswith(name,%27Camion%27)&$select=id,properties&$top=500";
 
-	private HashMap<Integer, MiContenedor> contenedores;
+	private HashMap<Long, MiContenedor> contenedores;
 	private HashMap<Integer, Camion> camiones;
 
 	private ControladorBL() {
-		this.contenedores = new HashMap<Integer, MiContenedor>();
-		this.camiones = new HashMap<Integer, Camion>();
-
-		loadContenedoresFromServer(GET_CONTENEDORES_URL_1);
-		loadContenedoresFromServer(GET_CONTENEDORES_URL_2);
-		loadCamionesFromServer(GET_CAMIONES_URL);
+		this.contenedores = new HashMap<Long, MiContenedor>();
+		this.camiones = new HashMap<Integer, Camion>();	
 	}
 
 	public static ControladorBL getInstance() {
-		if (instance == null) {
-			instance = new ControladorBL();
-		}
 		return instance;
 	}
 
-	public HashMap<Integer, MiContenedor> getContenedores() {
+	public HashMap<Long, MiContenedor> getContenedores() {
 		return this.contenedores;
 	}
 
@@ -96,6 +101,17 @@ public class ControladorBL {
 		return "";
 	}
 
+	public void cargar () {
+		loadContenedoresFromServer(GET_CONTENEDORES_URL_1);
+		loadContenedoresFromServer(GET_CONTENEDORES_URL_2);
+		loadContenedoresFromServer(GET_CONTENEDORES_URL_3);
+		loadContenedoresFromServer(GET_CONTENEDORES_URL_4);
+		loadContenedoresFromServer(GET_CONTENEDORES_URL_5);
+		loadContenedoresFromServer(GET_CONTENEDORES_URL_6);
+		loadContenedoresFromServer(GET_CONTENEDORES_URL_7);
+		loadCamionesFromServer(GET_CAMIONES_URL);
+	}
+	
 	private void loadContenedoresFromServer(String getContenedoresUrl) {
 		try {
 			URL url = new URL(getContenedoresUrl);
@@ -131,11 +147,10 @@ public class ControladorBL {
 							.get("@iot.id").getAsInt();
 					int dsCapId = jsonObjContenedor.getAsJsonArray("Datastreams").get(0).getAsJsonObject()
 							.get("@iot.id").getAsInt();
-					String barrio = "";
-					for (JsonElement jo: jsonObjContenedor.getAsJsonObject("properties").getAsJsonArray("barrio")){
-						barrio = barrio.equals("") ? barrio+jo.getAsString() : barrio+","+jo.getAsString();
-					}
-					this.contenedores.put(thingId, new MiContenedor(thingId, dsCapId, dsTempId, barrio));
+					String barrio = jsonObjContenedor.getAsJsonObject("properties").get("barrio").getAsString();
+					jsonObjContenedor.getAsJsonObject("properties").get("barrio");
+					MiContenedor m = new MiContenedor(thingId, dsCapId, dsTempId, barrio);
+					this.contenedores.put((long) thingId, m);
 				}
 
 				// Inicia threads simuladores de sensores de contenedores
@@ -183,7 +198,11 @@ public class ControladorBL {
 				for (JsonElement je : jsonArrayCamiones) {
 					JsonObject jsonObjCamion = je.getAsJsonObject();
 					int thingId = jsonObjCamion.get("@iot.id").getAsInt();
-					String barrio = jsonObjCamion.get("properties").getAsJsonObject().get("barrio").getAsString();
+					JsonArray barrios = jsonObjCamion.get("properties").getAsJsonObject().getAsJsonArray("barrio");
+					String barrio = "";
+					for (JsonElement b : barrios) {
+						barrio += barrio.equals("")?b.getAsString():","+b.getAsString();
+					}
 					this.camiones.put(thingId, new Camion(thingId, barrio));
 				}
 

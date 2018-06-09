@@ -1,4 +1,4 @@
-
+package camion;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -27,7 +27,7 @@ public class CargarCamionesGOST {
 		String post = "{\r\n" + 
 				"  \"name\": \"Camion <id>\",\r\n" + 
 				"  \"description\": \"Camion <id>\",\r\n" + 
-				"  \"properties\": { \"barrio\": [\"POCITOS\"]},\r\n" +
+				"  \"properties\": { \"barrio\": [\"BUCEO\", \"POCITOS\", \"MALVIN\"]},\r\n" +
 				"  \"Locations\": [{\r\n" + 
 				"    \"name\": \"Ubicacion camion <id>\",\r\n" + 
 				"    \"description\": \"Camion <id>\",\r\n" + 
